@@ -1,0 +1,21 @@
+#pragma once
+
+#include "albedo/core/normal3.hpp"
+#include "albedo/core/point3.hpp"
+#include "albedo/core/real.hpp"
+
+namespace albedo {
+
+/// The nearest surface a ray hits in a scene, as shading code needs it.
+struct HitRecord {
+    /// Ray parameter of the hit.
+    Real t{};
+    /// Hit position in world space.
+    Point3r point{};
+    /// Unit normal facing against the incoming ray, whichever side was hit.
+    Normal3r normal{};
+    /// True when the ray hit the outside of the surface (its normal pointed at the ray).
+    bool front_face{};
+};
+
+} // namespace albedo

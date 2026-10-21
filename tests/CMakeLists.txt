@@ -11,6 +11,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(albedo_tests
+    camera/perspective_camera_test.cpp
     color/rgb_test.cpp
     color/srgb_test.cpp
     core/arithmetic_test.cpp
@@ -27,6 +28,7 @@ add_executable(albedo_tests
     geometry/sphere_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
+    scene/scene_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(albedo_tests PRIVATE albedo_core GTest::gtest_main)
