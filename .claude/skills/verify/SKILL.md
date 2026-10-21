@@ -16,7 +16,7 @@ Run every step, even if an earlier one fails, so the report is complete.
 
 1. Configure the sanitizer build if `build-asan/` does not exist:
    `cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"`
-   <!-- Replace with `cmake --preset asan` if the project defines presets. -->
+   Add `-DCMAKE_CXX_COMPILER=<compiler>` when the default compiler lacks `std::format` (GCC < 13).
 2. Build: `cmake --build build-asan -j`. Warnings are errors; treat any warning as a failure.
 3. Test: `ctest --test-dir build-asan --output-on-failure`.
 4. Format: `clang-format --dry-run --Werror` on the changed `.h`, `.hpp`, `.cpp` files listed above.

@@ -36,7 +36,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 ## Steps
 
 - [x] 0. Build skeleton: root CMake, `albedo_core`, `albedo` app, GoogleTest, warnings as errors, Debug ASan+UBSan, `.clang-format`, `.clang-tidy`, one trivial test. Linux and MSVC compatible. *(completed 2026-10-21)*
-- [ ] 1. Core math: `Tuple3` types (`Vector3`, `Point3`, `Normal3`), `Point2`, `Ray`, `Interval`, `Bounds3`, `OrthonormalBasis`
+- [x] 1. Core math: generic `Vector3`, `Point3`, `Normal3`, `Point2`, `Bounds3` (templated on the scalar type), `Ray`, `Interval`, `OrthonormalBasis` *(completed 2026-10-21)*
 - [ ] 2. `Rgb`, `PixelBuffer`, `writePpm`, producing a gradient image
 - [ ] 3. `PerspectiveCamera`, `Sphere`, `Scene`, `NormalsEstimator`, producing the first rendered image
 - [ ] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test
