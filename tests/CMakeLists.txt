@@ -32,6 +32,7 @@ add_executable(albedo_tests
     render/render_image_test.cpp
     sampling/pcg32_test.cpp
     sampling/sample_generator_test.cpp
+    sampling/warps_test.cpp
     scene/scene_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

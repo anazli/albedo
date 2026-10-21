@@ -9,6 +9,7 @@ target_sources(albedo_core
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
         albedo/render/render_image.cpp
+        albedo/sampling/warps.cpp
         albedo/scene/scene.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -37,6 +38,7 @@ target_sources(albedo_core
             albedo/render/render_image.hpp
             albedo/sampling/pcg32.hpp
             albedo/sampling/sample_generator.hpp
+            albedo/sampling/warps.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
 )
