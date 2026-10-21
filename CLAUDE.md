@@ -124,5 +124,6 @@ Rules for headers, implementation files, tests and CMake live in `.claude/rules/
 - Read the surrounding code before editing and match its conventions.
 - Never hardcode credentials, tokens, or machine-specific paths.
 - Flag security-relevant changes (input parsing, file and network I/O, memory handling) in your summary.
+- Every C++/CMake change is reviewed by the read-only `cpp-reviewer` agent (`.claude/agents/cpp-reviewer.md`) once build and tests pass, and before it is committed. Hooks enforce this: the Stop hook requests the review, and `git commit` is refused while the change differs from what was last reviewed. Pass the reviewer the `git diff HEAD` output and new file paths, since it cannot run git. Fix blocking findings, fix should-fix findings unless there is a concrete reason not to, and report all findings and the verdict.
 - If a requirement is unclear, ask instead of guessing.
 - Keep commits focused; do not commit, push, or modify CI configuration without being asked.

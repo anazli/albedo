@@ -46,4 +46,6 @@ if ! out=$(ctest --test-dir "$build_dir" --output-on-failure 2>&1); then
   exit 2
 fi
 
-exit 0
+# Build and tests are green: hand over to the review gate. Chained rather than
+# registered separately because hooks on the same event run in parallel.
+exec "$(dirname "$0")/request-review.sh" <<<"$input"

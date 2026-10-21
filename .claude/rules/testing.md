@@ -6,7 +6,10 @@ paths:
 
 # Test file rules
 
-<!-- Framework: replace with the one you use (GoogleTest, Catch2, doctest). -->
+- Framework: GoogleTest (`GTest::gtest_main`). Register every test file explicitly in `tests/CMakeLists.txt`.
+- Shared test helpers live in `tests/support/` in namespace `albedo::test_support`, e.g. `expectNear` for component-wise tolerance checks.
+- Check precondition `assert`s with `EXPECT_DEBUG_DEATH` in a test suite named `<Type>DeathTest`.
+- Check that something must not compile with a concept wrapping a `requires` expression plus `static_assert(!Concept<...>)`.
 
 - Test files mirror the source tree: `src/parser/lexer.cpp` is tested in `tests/parser/lexer_test.cpp`.
 - Test names describe behaviour in camelCase: `parsesEmptyInput`, `throwsOnInvalidHeader`.
