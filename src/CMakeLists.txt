@@ -1,11 +1,14 @@
 add_library(albedo_core STATIC)
 target_sources(albedo_core
     PRIVATE
+        albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
         FILES
+            albedo/color/rgb.hpp
+            albedo/color/srgb.hpp
             albedo/core/arithmetic.hpp
             albedo/core/bounds3.hpp
             albedo/core/interval.hpp
