@@ -1,11 +1,16 @@
 add_library(albedo_core STATIC)
 target_sources(albedo_core
     PRIVATE
+        albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
+        albedo/image/pixel_buffer.cpp
+        albedo/image/ppm.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
         FILES
+            albedo/color/rgb.hpp
+            albedo/color/srgb.hpp
             albedo/core/arithmetic.hpp
             albedo/core/bounds3.hpp
             albedo/core/interval.hpp
@@ -16,6 +21,8 @@ target_sources(albedo_core
             albedo/core/ray.hpp
             albedo/core/real.hpp
             albedo/core/vector3.hpp
+            albedo/image/pixel_buffer.hpp
+            albedo/image/ppm.hpp
 )
 target_compile_features(albedo_core PUBLIC cxx_std_20)
 albedo_set_warnings(albedo_core)
