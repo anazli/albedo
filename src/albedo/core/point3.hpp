@@ -4,6 +4,7 @@
 #include "albedo/core/real.hpp"
 #include "albedo/core/vector3.hpp"
 
+#include <algorithm>
 #include <concepts>
 
 namespace albedo {
@@ -61,6 +62,20 @@ template <Arithmetic T>
 [[nodiscard]] constexpr Point3<T> operator-(Point3<T> p, Vector3<T> offset) noexcept
 {
     return p -= offset;
+}
+
+/// The point taking the smaller coordinate of `a` and `b` on each axis.
+template <Arithmetic T>
+[[nodiscard]] constexpr Point3<T> componentMin(Point3<T> a, Point3<T> b) noexcept
+{
+    return {std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z)};
+}
+
+/// The point taking the larger coordinate of `a` and `b` on each axis.
+template <Arithmetic T>
+[[nodiscard]] constexpr Point3<T> componentMax(Point3<T> a, Point3<T> b) noexcept
+{
+    return {std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z)};
 }
 
 /// Squared distance between two points.

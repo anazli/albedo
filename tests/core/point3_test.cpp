@@ -87,6 +87,15 @@ TEST(Point3Test, distanceIsLengthOfDifference)
     EXPECT_NEAR(distanceSquared(a, b), 25.0, default_tolerance);
 }
 
+TEST(Point3Test, componentMinAndMaxPickPerAxis)
+{
+    constexpr Point3i a{1, 5, -3};
+    constexpr Point3i b{2, -4, -3};
+
+    static_assert(componentMin(a, b) == Point3i{1, -4, -3});
+    static_assert(componentMax(a, b) == Point3i{2, 5, -3});
+}
+
 TEST(Point3Test, distanceToSelfIsZero)
 {
     constexpr Point3r p{1.0, 2.0, 3.0};
