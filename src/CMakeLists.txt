@@ -3,6 +3,7 @@ target_sources(albedo_core
     PRIVATE
         albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
+        albedo/geometry/sphere.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
     PUBLIC
@@ -21,6 +22,9 @@ target_sources(albedo_core
             albedo/core/ray.hpp
             albedo/core/real.hpp
             albedo/core/vector3.hpp
+            albedo/geometry/shape.hpp
+            albedo/geometry/shape_hit.hpp
+            albedo/geometry/sphere.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
 )

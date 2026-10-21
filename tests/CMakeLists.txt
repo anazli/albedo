@@ -23,6 +23,8 @@ add_executable(albedo_tests
     core/ray_test.cpp
     core/real_test.cpp
     core/vector3_test.cpp
+    geometry/shape_test.cpp
+    geometry/sphere_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
 )
