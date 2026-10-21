@@ -35,6 +35,8 @@ target_sources(albedo_core
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
             albedo/render/render_image.hpp
+            albedo/sampling/pcg32.hpp
+            albedo/sampling/sample_generator.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
 )
