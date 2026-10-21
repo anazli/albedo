@@ -1,9 +1,9 @@
-option(RT_ENABLE_SANITIZERS "Build Debug configurations with AddressSanitizer and UBSan" ON)
+option(ALBEDO_ENABLE_SANITIZERS "Build Debug configurations with AddressSanitizer and UBSan" ON)
 
 # Enables ASan + UBSan on a target for Debug builds. MSVC only supports ASan,
 # so UBSan is omitted there.
-function(rt_enable_sanitizers target)
-    if(NOT RT_ENABLE_SANITIZERS)
+function(albedo_enable_sanitizers target)
+    if(NOT ALBEDO_ENABLE_SANITIZERS)
         return()
     endif()
 

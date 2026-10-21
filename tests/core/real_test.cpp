@@ -1,11 +1,11 @@
-#include "rt/core/real.hpp"
+#include "albedo/core/real.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <concepts>
 
-namespace rt {
+namespace albedo {
 namespace {
 
 TEST(RealTest, isDoublePrecision)
@@ -28,4 +28,4 @@ TEST(RealTest, inversePiIsReciprocalOfPi)
 }
 
 } // namespace
-} // namespace rt
+} // namespace albedo

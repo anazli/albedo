@@ -1,5 +1,5 @@
 # Applies the project warning policy (warnings are errors) to a target.
-function(rt_set_warnings target)
+function(albedo_set_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /WX /permissive-)
     else()

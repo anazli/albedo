@@ -10,12 +10,12 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(rt_tests
+add_executable(albedo_tests
     core/real_test.cpp
 )
-target_link_libraries(rt_tests PRIVATE rt_core GTest::gtest_main)
-rt_set_warnings(rt_tests)
-rt_enable_sanitizers(rt_tests)
+target_link_libraries(albedo_tests PRIVATE albedo_core GTest::gtest_main)
+albedo_set_warnings(albedo_tests)
+albedo_enable_sanitizers(albedo_tests)
 
 include(GoogleTest)
-gtest_discover_tests(rt_tests)
+gtest_discover_tests(albedo_tests)

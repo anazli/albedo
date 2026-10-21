@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(ray_tracer LANGUAGES CXX)
+project(albedo LANGUAGES CXX)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -11,8 +11,8 @@ include(sanitizers)
 add_subdirectory(src)
 add_subdirectory(apps)
 
-option(RT_BUILD_TESTS "Build the unit tests" ON)
-if(RT_BUILD_TESTS)
+option(ALBEDO_BUILD_TESTS "Build the unit tests" ON)
+if(ALBEDO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
