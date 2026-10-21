@@ -11,9 +11,11 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(albedo_tests
+    core/interval_test.cpp
     core/normal3_test.cpp
     core/point2_test.cpp
     core/point3_test.cpp
+    core/ray_test.cpp
     core/real_test.cpp
     core/vector3_test.cpp
 )

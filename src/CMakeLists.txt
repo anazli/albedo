@@ -5,9 +5,11 @@ target_sources(albedo_core INTERFACE
     BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
     FILES
         albedo/core/arithmetic.hpp
+        albedo/core/interval.hpp
         albedo/core/normal3.hpp
         albedo/core/point2.hpp
         albedo/core/point3.hpp
+        albedo/core/ray.hpp
         albedo/core/real.hpp
         albedo/core/vector3.hpp
 )
