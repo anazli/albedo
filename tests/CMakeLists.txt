@@ -24,10 +24,12 @@ add_executable(albedo_tests
     core/ray_test.cpp
     core/real_test.cpp
     core/vector3_test.cpp
+    estimator/normals_estimator_test.cpp
     geometry/shape_test.cpp
     geometry/sphere_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
+    render/render_image_test.cpp
     scene/scene_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -42,19 +44,42 @@ gtest_discover_tests(albedo_tests WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 # Smoke tests of the command-line app.
 add_test(NAME app.rejectsMissingOutputPath COMMAND albedo)
 set_tests_properties(app.rejectsMissingOutputPath PROPERTIES WILL_FAIL TRUE)
-add_test(NAME app.rejectsTooManyArguments COMMAND albedo a.ppm b.ppm)
+add_test(NAME app.rejectsTooManyArguments COMMAND albedo a.ppm 64 extra)
 set_tests_properties(app.rejectsTooManyArguments PROPERTIES WILL_FAIL TRUE)
 # WILL_FAIL accepts any failure (even a crash), so also check the usage text is printed.
 add_test(NAME app.printsUsageOnWrongArguments COMMAND albedo)
 set_tests_properties(app.printsUsageOnWrongArguments PROPERTIES
-    PASS_REGULAR_EXPRESSION "usage: albedo <output.ppm>")
-set(gradient_image ${CMAKE_CURRENT_BINARY_DIR}/gradient.ppm)
-add_test(NAME app.removeOldGradientImage COMMAND ${CMAKE_COMMAND} -E rm -f ${gradient_image})
-add_test(NAME app.writesGradientImage COMMAND albedo ${gradient_image})
+    PASS_REGULAR_EXPRESSION "usage: albedo <output.ppm> \\[width\\]")
+# Each invalid width is checked twice: PASS_REGULAR_EXPRESSION ignores the exit
+# code, so a separate WILL_FAIL test checks that the app also fails.
+foreach(bad_width IN ITEMS abc 0 15 8193 -64 +64 64px 99999999999)
+    add_test(NAME app.rejectsWidth_${bad_width} COMMAND albedo bad.ppm ${bad_width})
+    set_tests_properties(app.rejectsWidth_${bad_width} PROPERTIES
+        PASS_REGULAR_EXPRESSION "invalid width")
+    add_test(NAME app.failsOnWidth_${bad_width} COMMAND albedo bad.ppm ${bad_width})
+    set_tests_properties(app.failsOnWidth_${bad_width} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+add_test(NAME app.rejectsEmptyWidth COMMAND albedo bad.ppm "")
+set_tests_properties(app.rejectsEmptyWidth PROPERTIES PASS_REGULAR_EXPRESSION "invalid width")
+add_test(NAME app.rejectsSpacePaddedWidth COMMAND albedo bad.ppm " 64")
+set_tests_properties(app.rejectsSpacePaddedWidth PROPERTIES
+    PASS_REGULAR_EXPRESSION "invalid width")
+# Outside the loop because an empty item is dropped and a space breaks the test name.
+add_test(NAME app.failsOnEmptyWidth COMMAND albedo bad.ppm "")
+set_tests_properties(app.failsOnEmptyWidth PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.failsOnSpacePaddedWidth COMMAND albedo bad.ppm " 64")
+set_tests_properties(app.failsOnSpacePaddedWidth PROPERTIES WILL_FAIL TRUE)
+# The smallest accepted width; the largest (8192) is not rendered, it would be too slow here.
+add_test(NAME app.acceptsMinimumWidth COMMAND albedo ${CMAKE_CURRENT_BINARY_DIR}/min_width.ppm 16)
+
+# A small render keeps the smoke test fast in sanitizer builds.
+set(smoke_image ${CMAKE_CURRENT_BINARY_DIR}/smoke.ppm)
+add_test(NAME app.removeOldSmokeImage COMMAND ${CMAKE_COMMAND} -E rm -f ${smoke_image})
+add_test(NAME app.writesImage COMMAND albedo ${smoke_image} 64)
 # md5sum fails when the file is missing, so this checks the app actually wrote it.
-add_test(NAME app.gradientImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${gradient_image})
-set_tests_properties(app.removeOldGradientImage PROPERTIES FIXTURES_SETUP gradient_cleared)
-set_tests_properties(app.writesGradientImage PROPERTIES
-    FIXTURES_REQUIRED gradient_cleared
-    FIXTURES_SETUP gradient_written)
-set_tests_properties(app.gradientImageExists PROPERTIES FIXTURES_REQUIRED gradient_written)
+add_test(NAME app.smokeImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${smoke_image})
+set_tests_properties(app.removeOldSmokeImage PROPERTIES FIXTURES_SETUP smoke_cleared)
+set_tests_properties(app.writesImage PROPERTIES
+    FIXTURES_REQUIRED smoke_cleared
+    FIXTURES_SETUP smoke_written)
+set_tests_properties(app.smokeImageExists PROPERTIES FIXTURES_REQUIRED smoke_written)

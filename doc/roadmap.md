@@ -38,7 +38,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 - [x] 0. Build skeleton: root CMake, `albedo_core`, `albedo` app, GoogleTest, warnings as errors, Debug ASan+UBSan, `.clang-format`, `.clang-tidy`, one trivial test. Linux and MSVC compatible. *(completed 2026-10-21)*
 - [x] 1. Core math: generic `Vector3`, `Point3`, `Normal3`, `Point2`, `Bounds3` (templated on the scalar type), `Ray`, `Interval`, `OrthonormalBasis` *(completed 2026-10-21)*
 - [x] 2. `Rgb`, `PixelBuffer`, `writePpm`, producing a gradient image *(completed 2026-10-21)*
-- [ ] 3. `PerspectiveCamera`, `Sphere`, `Scene`, `NormalsEstimator`, producing the first rendered image
+- [x] 3. `PerspectiveCamera`, `Sphere`, `Scene`, `NormalsEstimator`, producing the first rendered image (`scenes/step-03-normals.png`) *(completed 2026-10-21)*
 - [ ] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test
 - [ ] 5. Parallel tile renderer (`std::jthread`); images identical across thread counts
 - [ ] 6. `ConductorLobe` (GGX) and `DielectricLobe`
