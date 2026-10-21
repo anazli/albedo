@@ -1,5 +1,6 @@
 #pragma once
 
+#include "albedo/core/arithmetic.hpp"
 #include "albedo/core/real.hpp"
 #include "albedo/core/vector3.hpp"
 
@@ -60,6 +61,16 @@ template <std::floating_point T>
     return n * scale;
 }
 
+/// Scaling by a factor that would be narrowed is rejected.
+template <std::floating_point T, typename Factor>
+    requires detail::LossyFactor<Factor, T>
+Normal3<T> operator*(Normal3<T>, Factor) = delete;
+
+/// Scaling by a factor that would be narrowed is rejected.
+template <std::floating_point T, typename Factor>
+    requires detail::LossyFactor<Factor, T>
+Normal3<T> operator*(Factor, Normal3<T>) = delete;
+
 /// Dot product of a normal and a vector.
 template <std::floating_point T>
 [[nodiscard]] constexpr T dot(Normal3<T> n, Vector3<T> v) noexcept
@@ -82,7 +93,8 @@ template <std::floating_point T>
 }
 
 /// Unit normal with the same orientation.
-/// Precondition: the normal has non-zero length.
+/// Precondition: as for `normalized(Vector3<T>)`; the length must be positive and
+/// within the range documented there.
 template <std::floating_point T>
 [[nodiscard]] Normal3<T> normalized(Normal3<T> n) noexcept
 {

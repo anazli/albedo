@@ -19,6 +19,12 @@ concept Subtractable = requires(A a, B b) { a - b; };
 template <typename A>
 concept Scalable = requires(A a) { a * 2; };
 
+template <typename A>
+concept ScalableOnLeft = requires(A a) { 2 * a; };
+
+template <typename A>
+concept Divisible = requires(A a) { a / 2; };
+
 TEST(Point3Test, defaultConstructsToOrigin)
 {
     constexpr Point3i p{};
@@ -69,6 +75,8 @@ TEST(Point3Test, rejectsGeometricallyMeaninglessOperations)
     static_assert(!Addable<Vector3r, Point3r>);
     static_assert(!Subtractable<Vector3r, Point3r>);
     static_assert(!Scalable<Point3r>);
+    static_assert(!ScalableOnLeft<Point3r>);
+    static_assert(!Divisible<Point3r>);
 }
 
 TEST(Point3Test, allowsMeaningfulOperations)
@@ -84,7 +92,14 @@ TEST(Point3Test, distanceIsLengthOfDifference)
     constexpr Point3r b{4.0, 6.0, 3.0};
 
     EXPECT_NEAR(distance(a, b), 5.0, default_tolerance);
-    EXPECT_NEAR(distanceSquared(a, b), 25.0, default_tolerance);
+}
+
+TEST(Point3Test, distanceSquaredIsSquaredLengthOfDifference)
+{
+    constexpr Point3i a{1, 2, 3};
+    constexpr Point3i b{4, 6, 3};
+
+    static_assert(distanceSquared(a, b) == 25);
 }
 
 TEST(Point3Test, componentMinAndMaxPickPerAxis)

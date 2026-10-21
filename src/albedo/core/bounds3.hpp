@@ -50,7 +50,7 @@ struct Bounds3 {
             return T{0};
         }
         const Vector3<T> d{extent()};
-        return 2 * (d.x * d.y + d.y * d.z + d.z * d.x);
+        return static_cast<T>(2 * (d.x * d.y + d.y * d.z + d.z * d.x));
     }
 };
 

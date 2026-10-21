@@ -21,6 +21,21 @@ concept HasNormalized = requires(V v) { normalized(v); };
 template <typename V>
 concept DivisibleByScalar = requires(V v) { v / 2; };
 
+template <typename V, typename S>
+concept ScalableOnRightBy = requires(V v, S s) { v* s; };
+
+template <typename V, typename S>
+concept ScalableOnLeftBy = requires(V v, S s) { s* v; };
+
+template <typename V, typename S>
+concept CompoundScalableBy = requires(V v, S s) { v *= s; };
+
+template <typename V, typename S>
+concept DivisibleBy = requires(V v, S s) { v / s; };
+
+template <typename V, typename S>
+concept CompoundDivisibleBy = requires(V v, S s) { v /= s; };
+
 TEST(Vector3Test, defaultConstructsToZero)
 {
     constexpr Vector3i v{};
@@ -49,6 +64,57 @@ TEST(Vector3Test, negatesEachComponent)
     constexpr Vector3i v{1, -2, 3};
 
     static_assert(-v == Vector3i{-1, 2, -3});
+}
+
+TEST(Vector3Test, negationFlipsSignOfZero)
+{
+    const Vector3r v{-Vector3r{}};
+
+    EXPECT_TRUE(std::signbit(v.x));
+    EXPECT_TRUE(std::signbit(v.y));
+    EXPECT_TRUE(std::signbit(v.z));
+}
+
+TEST(Vector3Test, rejectsScaleFactorsThatWouldLosePrecision)
+{
+    // A floating-point factor would be truncated for integer vectors, and
+    // narrowed for float vectors; both are silent bugs (and C4244 on MSVC).
+    static_assert(!ScalableOnRightBy<Vector3i, double>);
+    static_assert(!ScalableOnLeftBy<Vector3i, double>);
+    static_assert(!ScalableOnRightBy<Vector3i, float>);
+    static_assert(!ScalableOnLeftBy<Vector3i, float>);
+    static_assert(!CompoundScalableBy<Vector3i, double>);
+    static_assert(!DivisibleBy<Vector3i, double>);
+    static_assert(!CompoundDivisibleBy<Vector3i, double>);
+    static_assert(!ScalableOnRightBy<Vector3<float>, double>);
+    static_assert(!ScalableOnLeftBy<Vector3<float>, double>);
+    static_assert(!CompoundScalableBy<Vector3<float>, double>);
+    static_assert(!DivisibleBy<Vector3<float>, double>);
+    static_assert(!CompoundDivisibleBy<Vector3<float>, double>);
+}
+
+TEST(Vector3Test, rejectsLongDoubleFactorOnEveryPlatform)
+{
+    // long double -> double narrows by language rules even where both are 8 bytes (MSVC).
+    static_assert(!ScalableOnRightBy<Vector3r, long double>);
+    static_assert(!ScalableOnLeftBy<Vector3r, long double>);
+    static_assert(!DivisibleBy<Vector3r, long double>);
+    static_assert(!CompoundScalableBy<Vector3r, long double>);
+    static_assert(!CompoundDivisibleBy<Vector3r, long double>);
+}
+
+TEST(Vector3Test, acceptsScaleFactorsThatKeepPrecision)
+{
+    static_assert(ScalableOnRightBy<Vector3i, int>);
+    static_assert(ScalableOnLeftBy<Vector3i, int>);
+    static_assert(ScalableOnRightBy<Vector3r, int>);
+    static_assert(ScalableOnRightBy<Vector3r, float>);
+    static_assert(ScalableOnLeftBy<Vector3r, double>);
+    static_assert(ScalableOnLeftBy<Vector3r, float>);
+    static_assert(CompoundDivisibleBy<Vector3r, float>);
+    static_assert(CompoundScalableBy<Vector3r, float>);
+    static_assert(ScalableOnRightBy<Vector3<float>, float>);
+    static_assert(DivisibleBy<Vector3r, float>);
 }
 
 TEST(Vector3Test, scalesByScalarOnEitherSide)

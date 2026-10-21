@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 namespace albedo {
 namespace {
 
@@ -15,6 +17,15 @@ concept CanMakeNormal = requires { typename Normal3<T>; };
 
 template <typename A, typename B>
 concept Addable = requires(A a, B b) { a + b; };
+
+template <typename A, typename B>
+concept Subtractable = requires(A a, B b) { a - b; };
+
+template <typename N, typename S>
+concept ScalableOnRightBy = requires(N n, S s) { n* s; };
+
+template <typename N, typename S>
+concept ScalableOnLeftBy = requires(N n, S s) { s* n; };
 
 TEST(Normal3Test, requiresFloatingPointComponents)
 {
@@ -36,6 +47,22 @@ TEST(Normal3Test, scalesByScalar)
 
     expectNear(n * 2.0, Normal3r{0.0, 2.0, 4.0});
     expectNear(2.0 * n, Normal3r{0.0, 2.0, 4.0});
+}
+
+TEST(Normal3Test, rejectsScaleFactorsThatWouldLosePrecision)
+{
+    static_assert(!ScalableOnRightBy<Normal3<float>, double>);
+    static_assert(!ScalableOnLeftBy<Normal3<float>, double>);
+    static_assert(ScalableOnRightBy<Normal3<float>, float>);
+    static_assert(ScalableOnLeftBy<Normal3<float>, float>);
+    static_assert(ScalableOnRightBy<Normal3r, float>);
+    static_assert(ScalableOnLeftBy<Normal3r, float>);
+}
+
+TEST(Normal3Test, rejectsLongDoubleFactorOnEveryPlatform)
+{
+    static_assert(!ScalableOnRightBy<Normal3r, long double>);
+    static_assert(!ScalableOnLeftBy<Normal3r, long double>);
 }
 
 TEST(Normal3Test, dotWithVectorInEitherOrder)
@@ -77,6 +104,17 @@ TEST(Normal3Test, doesNotMixWithVectorArithmetic)
     // A normal transforms differently from a vector, so implicit mixing is a bug.
     static_assert(!Addable<Normal3r, Vector3r>);
     static_assert(!Addable<Vector3r, Normal3r>);
+    static_assert(!Subtractable<Normal3r, Vector3r>);
+    static_assert(!Subtractable<Vector3r, Normal3r>);
+}
+
+TEST(Normal3Test, negationFlipsSignOfZero)
+{
+    const Normal3r n{-Normal3r{}};
+
+    EXPECT_TRUE(std::signbit(n.x));
+    EXPECT_TRUE(std::signbit(n.y));
+    EXPECT_TRUE(std::signbit(n.z));
 }
 
 TEST(Normal3DeathTest, normalizedAssertsOnZeroNormal)

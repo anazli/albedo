@@ -21,6 +21,7 @@ struct Point3 {
 
     [[nodiscard]] constexpr bool operator==(const Point3&) const noexcept = default;
 
+    /// Moves the point by `offset`.
     constexpr Point3& operator+=(Vector3<T> offset) noexcept
     {
         x += offset.x;
@@ -29,6 +30,7 @@ struct Point3 {
         return *this;
     }
 
+    /// Moves the point by `-offset`.
     constexpr Point3& operator-=(Vector3<T> offset) noexcept
     {
         x -= offset.x;

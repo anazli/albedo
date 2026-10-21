@@ -96,6 +96,16 @@ TEST(OrthonormalBasisTest, toWorldInvertsToLocal)
         const OrthonormalBasis basis{OrthonormalBasis::fromNormal(n)};
 
         expectNear(basis.toWorld(basis.toLocal(v)), v);
+    }
+}
+
+TEST(OrthonormalBasisTest, toLocalInvertsToWorld)
+{
+    constexpr Vector3r v{0.3, -1.2, 2.5};
+
+    for (const Normal3r& n : testNormals()) {
+        const OrthonormalBasis basis{OrthonormalBasis::fromNormal(n)};
+
         expectNear(basis.toLocal(basis.toWorld(v)), v);
     }
 }

@@ -15,7 +15,8 @@ namespace albedo {
 /// Binary operators are built on the compound ones so that small integer
 /// types convert back after promotion instead of failing on narrowing.
 /// Scalar parameters use `std::type_identity_t` so `v * 2` works for a
-/// `Vector3r` without deducing conflicting types.
+/// `Vector3r` without deducing conflicting types; floating-point factors that
+/// would be truncated or narrowed are rejected by deleted overloads instead.
 template <Arithmetic T>
 struct Vector3 {
     T x{};
@@ -24,6 +25,7 @@ struct Vector3 {
 
     [[nodiscard]] constexpr bool operator==(const Vector3&) const noexcept = default;
 
+    /// Adds `other` component-wise.
     constexpr Vector3& operator+=(Vector3 other) noexcept
     {
         x += other.x;
@@ -32,6 +34,7 @@ struct Vector3 {
         return *this;
     }
 
+    /// Subtracts `other` component-wise.
     constexpr Vector3& operator-=(Vector3 other) noexcept
     {
         x -= other.x;
@@ -40,6 +43,7 @@ struct Vector3 {
         return *this;
     }
 
+    /// Scales every component by `scale`.
     constexpr Vector3& operator*=(std::type_identity_t<T> scale) noexcept
     {
         x *= scale;
@@ -48,12 +52,26 @@ struct Vector3 {
         return *this;
     }
 
-    /// Integer vectors have no division: it would silently truncate.
+    /// Divides every component by `divisor`. Integer vectors have no division:
+    /// it would silently truncate.
     constexpr Vector3& operator/=(std::type_identity_t<T> divisor) noexcept
         requires std::floating_point<T>
     {
-        return *this *= T{1} / divisor;
+        x /= divisor;
+        y /= divisor;
+        z /= divisor;
+        return *this;
     }
+
+    /// Scaling by a factor that would be truncated or narrowed is rejected.
+    template <typename Factor>
+        requires detail::LossyFactor<Factor, T>
+    Vector3& operator*=(Factor) = delete;
+
+    /// Dividing by a factor that would be narrowed is rejected.
+    template <typename Factor>
+        requires detail::LossyFactor<Factor, T>
+    Vector3& operator/=(Factor) = delete;
 };
 
 /// Vector with `Real` components, the default for geometry.
@@ -75,11 +93,12 @@ template <Arithmetic T>
     return a -= b;
 }
 
-/// The vector pointing the opposite way.
+/// The vector pointing the opposite way. Negates each component directly rather
+/// than computing `0 - v`, which would turn -0.0 into +0.0 and lose the sign bit.
 template <Arithmetic T>
 [[nodiscard]] constexpr Vector3<T> operator-(Vector3<T> v) noexcept
 {
-    return Vector3<T>{} - v;
+    return {static_cast<T>(-v.x), static_cast<T>(-v.y), static_cast<T>(-v.z)};
 }
 
 /// Scales every component by `scale`.
@@ -96,6 +115,16 @@ template <Arithmetic T>
     return v *= scale;
 }
 
+/// Scaling by a factor that would be truncated or narrowed is rejected.
+template <Arithmetic T, typename Factor>
+    requires detail::LossyFactor<Factor, T>
+Vector3<T> operator*(Vector3<T>, Factor) = delete;
+
+/// Scaling by a factor that would be truncated or narrowed is rejected.
+template <Arithmetic T, typename Factor>
+    requires detail::LossyFactor<Factor, T>
+Vector3<T> operator*(Factor, Vector3<T>) = delete;
+
 /// Divides every component by `divisor`. Floating point only.
 template <std::floating_point T>
 [[nodiscard]] constexpr Vector3<T> operator/(Vector3<T> v, std::type_identity_t<T> divisor) noexcept
@@ -103,11 +132,16 @@ template <std::floating_point T>
     return v /= divisor;
 }
 
+/// Dividing by a factor that would be narrowed is rejected.
+template <Arithmetic T, typename Factor>
+    requires detail::LossyFactor<Factor, T>
+Vector3<T> operator/(Vector3<T>, Factor) = delete;
+
 /// Dot product.
 template <Arithmetic T>
 [[nodiscard]] constexpr T dot(Vector3<T> a, Vector3<T> b) noexcept
 {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
+    return static_cast<T>(a.x * b.x + a.y * b.y + a.z * b.z);
 }
 
 /// Cross product, following the right-hand rule.
@@ -133,7 +167,10 @@ template <std::floating_point T>
 }
 
 /// Unit vector with the same direction.
-/// Precondition: `length(v) > 0`.
+/// Precondition: `length(v) > 0`. The length comes from `lengthSquared(v)`, which
+/// must not overflow or underflow: roughly 1e-154 < length(v) < 1e154 for `double`
+/// and 1e-19 < length(v) < 1e19 for `float`. Scene geometry is far inside that
+/// range, so no rescaling is done.
 template <std::floating_point T>
 [[nodiscard]] Vector3<T> normalized(Vector3<T> v) noexcept
 {

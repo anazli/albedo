@@ -11,6 +11,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(albedo_tests
+    core/arithmetic_test.cpp
     core/bounds3_test.cpp
     core/interval_test.cpp
     core/normal3_test.cpp
