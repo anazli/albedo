@@ -14,9 +14,9 @@ Rgb Scattering::evaluate(Vector3r wo, Vector3r wi) const
     return albedo::evaluate(lobe, basis.toLocal(wo), basis.toLocal(wi));
 }
 
-std::optional<ScatterSample> Scattering::sample(Vector3r wo, Point2r u) const
+std::optional<ScatterSample> Scattering::sample(Vector3r wo, Real u_choice, Point2r u) const
 {
-    std::optional<ScatterSample> result{albedo::sample(lobe, basis.toLocal(wo), u)};
+    std::optional<ScatterSample> result{albedo::sample(lobe, basis.toLocal(wo), u_choice, u)};
     if (result) {
         result->direction = basis.toWorld(result->direction);
     }

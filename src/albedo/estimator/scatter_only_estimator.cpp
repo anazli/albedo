@@ -21,10 +21,13 @@ constexpr Interval in_front_of_origin{.min = 0, .max = std::numeric_limits<Real>
 // far below any feature size that matters there.
 constexpr Real surface_offset{1e-7};
 
-// The ray leaving `hit` in `direction`, which lies on the side the normal faces.
+// The ray leaving `hit` in `direction`, started off the surface on the side the
+// direction leaves: in front for reflection, behind for refraction.
 Ray continuedRay(const HitRecord& hit, Vector3r direction) noexcept
 {
-    return {.origin = hit.point + asVector(hit.normal) * surface_offset, .direction = direction};
+    const Real side{dot(direction, hit.normal) >= 0 ? Real{1} : Real{-1}};
+    return {.origin = hit.point + asVector(hit.normal) * (side * surface_offset),
+            .direction = direction};
 }
 
 } // namespace
@@ -47,7 +50,9 @@ Rgb ScatterOnlyEstimator::radiance(const Ray& ray, const Scene& scene,
         if (scatter_count >= max_scatter_count) {
             return {};
         }
-        const auto sample{scene.scatteringAt(*hit).sample(-path_ray.direction, generator.next2D())};
+        const Real u_choice{generator.next1D()};
+        const auto sample{
+            scene.scatteringAt(*hit).sample(-path_ray.direction, u_choice, generator.next2D())};
         if (!sample) {
             return {};
         }

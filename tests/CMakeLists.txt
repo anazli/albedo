@@ -38,9 +38,14 @@ add_executable(albedo_tests
     sampling/pcg32_test.cpp
     sampling/sample_generator_test.cpp
     sampling/warps_test.cpp
+    scattering/conductor_lobe_test.cpp
+    scattering/dielectric_lobe_test.cpp
+    scattering/fresnel_test.cpp
+    scattering/ggx_distribution_test.cpp
     scattering/lambert_lobe_test.cpp
     scattering/lobe_test.cpp
     scattering/scattering_test.cpp
+    scattering/specular_test.cpp
     scene/scene_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

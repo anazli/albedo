@@ -1,9 +1,12 @@
 #include "albedo/camera/perspective_camera.hpp"
+#include "albedo/color/rgb.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
 #include "albedo/geometry/sphere.hpp"
 #include "albedo/image/pixel_buffer.hpp"
 #include "albedo/image/ppm.hpp"
+#include "albedo/material/conductor_material.hpp"
+#include "albedo/material/dielectric_material.hpp"
 #include "albedo/material/diffuse_material.hpp"
 #include "albedo/render/render_image.hpp"
 #include "albedo/scene/scene.hpp"
@@ -47,24 +50,44 @@ std::optional<int> parseImageWidth(std::string_view text)
     return width;
 }
 
-// A large sphere as the ground, a main sphere and smaller ones at varied
-// depths in matte colors (the far left one gray like the ground), under a
-// white-to-blue sky.
+// Complex refractive indices of the noble metals, measured by Johnson and
+// Christy, "Optical Constants of the Noble Metals", Phys. Rev. B 6, 4370 (1972),
+// taken from the refractiveindex.info database and linearly interpolated at
+// 650, 550 and 450 nm. Using one wavelength per channel is a simplification:
+// each RGB channel really covers a band of the spectrum.
+constexpr albedo::Rgb gold_eta{0.156, 0.424, 1.383};
+constexpr albedo::Rgb gold_k{3.602, 2.472, 1.915};
+constexpr albedo::Rgb copper_eta{0.238, 1.007, 1.240};
+constexpr albedo::Rgb copper_k{3.626, 2.582, 2.393};
+constexpr albedo::Rgb silver_eta{0.052, 0.060, 0.040};
+constexpr albedo::Rgb silver_k{4.409, 3.597, 2.648};
+
+// A large matte ground, smooth glass in the middle, rough gold and copper,
+// a silver mirror, a small sphere of frosted glass, and rough silver and a
+// matte sphere at the back, under a white-to-blue sky.
 albedo::Scene buildScene()
 {
+    using albedo::ConductorMaterial;
+    using albedo::DielectricMaterial;
     using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
-    const DiffuseMaterial ground{.albedo = {0.5, 0.5, 0.5}};
     albedo::Scene scene;
-    scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0}, ground);
-    scene.add(Sphere{Point3r{0.0, 1.0, 0.0}, 1.0}, DiffuseMaterial{.albedo = {0.8, 0.3, 0.2}});
-    scene.add(Sphere{Point3r{-2.3, 0.7, -0.6}, 0.7}, DiffuseMaterial{.albedo = {0.2, 0.5, 0.8}});
-    scene.add(Sphere{Point3r{2.2, 0.55, 0.4}, 0.55}, DiffuseMaterial{.albedo = {0.3, 0.7, 0.3}});
-    scene.add(Sphere{Point3r{1.1, 0.3, 1.9}, 0.3}, DiffuseMaterial{.albedo = {0.9, 0.8, 0.2}});
-    scene.add(Sphere{Point3r{-1.0, 0.25, 2.3}, 0.25}, DiffuseMaterial{.albedo = {0.9, 0.9, 0.9}});
+    scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0},
+              DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}});
+    scene.add(Sphere{Point3r{0.0, 1.0, 0.0}, 1.0},
+              DielectricMaterial{.ior = 1.5, .roughness = 0.0});
+    scene.add(Sphere{Point3r{-2.3, 0.7, -0.6}, 0.7},
+              ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.3});
+    scene.add(Sphere{Point3r{2.2, 0.55, 0.4}, 0.55},
+              ConductorMaterial{.eta = copper_eta, .k = copper_k, .roughness = 0.2});
+    scene.add(Sphere{Point3r{1.1, 0.3, 1.9}, 0.3},
+              DielectricMaterial{.ior = 1.5, .roughness = 0.4});
+    scene.add(Sphere{Point3r{-1.0, 0.25, 2.3}, 0.25},
+              ConductorMaterial{.eta = silver_eta, .k = silver_k, .roughness = 0.0});
     scene.add(Sphere{Point3r{4.2, 1.2, -4.0}, 1.2}, DiffuseMaterial{.albedo = {0.6, 0.4, 0.7}});
-    scene.add(Sphere{Point3r{-4.6, 1.5, -5.5}, 1.5}, ground);
+    scene.add(Sphere{Point3r{-4.6, 1.5, -5.5}, 1.5},
+              ConductorMaterial{.eta = silver_eta, .k = silver_k, .roughness = 0.5});
     scene.setSky({.nadir = {1.0, 1.0, 1.0}, .zenith = {0.5, 0.7, 1.0}});
     return scene;
 }

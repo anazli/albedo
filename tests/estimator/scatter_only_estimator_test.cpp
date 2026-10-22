@@ -178,5 +178,39 @@ TEST(ScatterOnlyEstimatorTest, sameGeneratorStateGivesTheSameEstimate)
                ScatterOnlyEstimator{}.radiance(at_ground, scene, second), exact_tolerance);
 }
 
+TEST(ScatterOnlyEstimatorTest, indexMatchedGlassIsInvisible)
+{
+    // Glass with the index of air neither reflects nor bends, so the path must
+    // pass through both walls and see the sky straight behind. A continued ray
+    // started on the wrong side of the surface would re-enter the sphere instead.
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
+              DielectricMaterial{.ior = 1.0, .roughness = 0.0});
+    const SkyLight sky{.nadir = {1.0, 1.0, 1.0}, .zenith = {0.0, 0.0, 1.0}};
+    scene.setSky(sky);
+    SampleGenerator generator{testGenerator()};
+    const Ray tilted{.origin = {0.0, 0.0, 0.0}, .direction = normalized(Vector3r{0.1, 0.15, -1.0})};
+
+    expectNear(ScatterOnlyEstimator{}.radiance(tilted, scene, generator),
+               sky.emittedRadiance(tilted.direction), estimate_tolerance);
+}
+
+TEST(ScatterOnlyEstimatorTest, whiteFurnaceHoldsThroughSmoothGlass)
+{
+    // Entering the glass weights the path by 1 / eta^2 and leaving by eta^2, and
+    // Fresnel reflection only reroutes it, so every path returns the sky.
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, 0.0}, 1.0},
+              DielectricMaterial{.ior = 1.5, .roughness = 0.0});
+    scene.setSky(SkyLight::uniform(sky_radiance));
+    SampleGenerator generator{testGenerator()};
+
+    for (int i{0}; i < 1000; ++i) {
+        const Ray ray{randomRayTowardsOrigin(generator)};
+        expectNear(ScatterOnlyEstimator{}.radiance(ray, scene, generator), sky_radiance,
+                   estimate_tolerance);
+    }
+}
+
 } // namespace
 } // namespace albedo

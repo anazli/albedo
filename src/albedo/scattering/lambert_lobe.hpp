@@ -29,7 +29,9 @@ struct LambertLobe {
     /// only a boundary `u` can do). The weight is exactly `albedo`, since
     /// f * cos(theta) / pdf cancels analytically; it is not computed by dividing
     /// by the pdf, which becomes tiny near grazing.
-    [[nodiscard]] std::optional<ScatterSample> sample(Vector3r wo, Point2r u) const noexcept;
+    /// `u_choice` is unused: the lobe has a single way to scatter.
+    [[nodiscard]] std::optional<ScatterSample> sample(Vector3r wo, Real u_choice,
+                                                      Point2r u) const noexcept;
 
     /// Density with which `sample` draws `wi` given `wo`: cos(theta_i) / pi for
     /// reflection, zero otherwise.

@@ -23,7 +23,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 |---|---|---|
 | Surface hit info | `HitRecord` (shape-level: `ShapeHit`) | point, normal, uv, `t`, front-face flag |
 | Local basis | `OrthonormalBasis` | `toLocal`, `toWorld` |
-| Scattering function at a hit | `Scattering` (lobe + basis) | `evaluate(wo, wi)`, `sample(wo, u)`, `pdf(wo, wi)` |
+| Scattering function at a hit | `Scattering` (lobe + basis) | `evaluate(wo, wi)`, `sample(wo, u_choice, u)`, `pdf(wo, wi)` |
 | Scattering model | `Lobe` variant: `LambertLobe`, `ConductorLobe`, `DielectricLobe` | same three functions in local space |
 | Material | `Material` variant | `scatteringAt(const HitRecord&)` |
 | Light | `Light` variant: `PointLight`, `AreaLight`, `SkyLight` | `sampleIncidentLight`, `incidentLightPdf`, `emittedRadiance` |
@@ -41,7 +41,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 - [x] 3. `PerspectiveCamera`, `Sphere`, `Scene`, `NormalsEstimator`, producing the first rendered image (`scenes/step-03-normals.png`) *(completed 2026-10-21)*
 - [x] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test; jittered sampling, producing `scenes/step-04-diffuse.png` *(completed 2026-10-22)*
 - [x] 5. Parallel tile renderer (`std::jthread`); images identical across thread counts *(completed 2026-10-22)*
-- [ ] 6. `ConductorLobe` (GGX) and `DielectricLobe`
+- [x] 6. `ConductorLobe` (GGX) and `DielectricLobe`, producing `scenes/step-06-metal-glass.png` *(completed 2026-10-22)*
 - [ ] 7. `PointLight`, `AreaLight`, `PathEstimator` (next-event estimation, MIS, Russian roulette)
 - [ ] 8. `Triangle`, `TriangleMesh`, BVH (SAH build), OBJ loader *(security-relevant: input parsing)*
 - [ ] 9. Textures and `Transform`-based instancing

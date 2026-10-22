@@ -61,7 +61,7 @@ TEST(ScatteringTest, pdfUsesCosineToTheWorldNormal)
 
 TEST(ScatteringTest, sampleReturnsWorldDirectionAboveTheNormal)
 {
-    const ScatterSample sample{requireValue(scattering.sample(besideNormal(1), {0.3, 0.8}))};
+    const ScatterSample sample{requireValue(scattering.sample(besideNormal(1), 0.5, {0.3, 0.8}))};
 
     EXPECT_GT(dot(normal, sample.direction), 0.0);
     EXPECT_NEAR(length(sample.direction), 1.0, default_tolerance);
@@ -72,9 +72,9 @@ TEST(ScatteringTest, sampleIsTheLobeSampleRotatedToWorld)
     const OrthonormalBasis basis{OrthonormalBasis::fromNormal(normal)};
     const Vector3r wo{besideNormal(1)};
     const ScatterSample local{
-        requireValue(LambertLobe{.albedo = albedo}.sample(basis.toLocal(wo), {0.6, 0.1}))};
+        requireValue(LambertLobe{.albedo = albedo}.sample(basis.toLocal(wo), 0.5, {0.6, 0.1}))};
 
-    const ScatterSample world{requireValue(scattering.sample(wo, {0.6, 0.1}))};
+    const ScatterSample world{requireValue(scattering.sample(wo, 0.5, {0.6, 0.1}))};
 
     expectNear(world.direction, basis.toWorld(local.direction));
     expectNear(world.weight, local.weight);
@@ -83,7 +83,20 @@ TEST(ScatteringTest, sampleIsTheLobeSampleRotatedToWorld)
 
 TEST(ScatteringTest, sampleReturnsNothingFromBelowTheNormal)
 {
-    EXPECT_FALSE(scattering.sample(besideNormal(-1), {0.3, 0.8}).has_value());
+    EXPECT_FALSE(scattering.sample(besideNormal(-1), 0.5, {0.3, 0.8}).has_value());
+}
+
+TEST(ScatteringTest, sampleForwardsTheChoiceNumber)
+{
+    // Smooth glass reflects for a low choice and refracts for a high one.
+    const Scattering glass{DielectricLobe{.eta = 1.5, .alpha = 0.0}, normal};
+    const Vector3r wo{besideNormal(1)};
+
+    const ScatterSample reflected{requireValue(glass.sample(wo, 0.0, {0.5, 0.5}))};
+    const ScatterSample refracted{requireValue(glass.sample(wo, 0.99, {0.5, 0.5}))};
+
+    EXPECT_GT(dot(normal, reflected.direction), 0.0);
+    EXPECT_LT(dot(normal, refracted.direction), 0.0);
 }
 
 } // namespace
