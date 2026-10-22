@@ -23,6 +23,10 @@ concept HasRgb = requires(const T& t) {
 /// Default tolerance for comparing results of a few floating-point operations.
 inline constexpr double default_tolerance{1e-12};
 
+/// Zero tolerance, for values copied rather than computed (an exact constant or
+/// an unchanged input), where any difference is a bug.
+inline constexpr double exact_tolerance{0.0};
+
 /// Expects each component of `actual` to be within `tolerance` of `expected`.
 template <HasXyz Tuple>
 void expectNear(const Tuple& actual, const Tuple& expected, double tolerance = default_tolerance)
