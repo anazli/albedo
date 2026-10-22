@@ -4,6 +4,7 @@
 #include "albedo/core/point2.hpp"
 #include "albedo/core/real.hpp"
 #include "albedo/core/vector3.hpp"
+#include "albedo/scattering/conductor_lobe.hpp"
 #include "albedo/scattering/lambert_lobe.hpp"
 #include "albedo/scattering/scatter_sample.hpp"
 
@@ -26,7 +27,7 @@ template <LobeLike... Lobes>
 using LobeVariant = std::variant<Lobes...>;
 
 /// Any scattering model the renderer supports. A closed set, like `Shape`.
-using Lobe = LobeVariant<LambertLobe>;
+using Lobe = LobeVariant<LambertLobe, ConductorLobe>;
 
 /// The held lobe's f(wo, wi) in local space.
 /// Not `noexcept`: `std::visit` throws `std::bad_variant_access` on a valueless variant.

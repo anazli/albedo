@@ -129,6 +129,12 @@ TEST(FresnelDeathTest, dielectricRejectsNonPositiveIndexRatio)
     EXPECT_DEBUG_DEATH(static_cast<void>(fresnelDielectric(0.5, 0.0)), "");
 }
 
+TEST(FresnelDeathTest, conductorRejectsNonPositiveIndex)
+{
+    EXPECT_DEBUG_DEATH(static_cast<void>(fresnelConductor(0.5, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0})),
+                       "");
+}
+
 TEST(FresnelDeathTest, conductorRejectsNegativeAbsorption)
 {
     EXPECT_DEBUG_DEATH(static_cast<void>(fresnelConductor(0.5, {1.0, 1.0, 1.0}, {1.0, -1.0, 1.0})),

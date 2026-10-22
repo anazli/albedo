@@ -15,8 +15,13 @@ struct ScatterSample {
     /// f(wo, wi) * |cos(theta_i)| / pdf, the factor by which the sample scales
     /// the light arriving along `direction`.
     Rgb weight{};
-    /// Solid-angle density with which `direction` was drawn; always positive.
+    /// Solid-angle density with which `direction` was drawn; always positive. For
+    /// a `specular` sample, the probability of the discrete choice instead.
     Real pdf{};
+    /// True when `direction` is the only one the function scatters into (a mirror
+    /// or perfect refraction), so no density describes it and the function's
+    /// `evaluate` and `pdf` are zero for it.
+    bool specular{};
 };
 
 } // namespace albedo

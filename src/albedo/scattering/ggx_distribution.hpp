@@ -27,6 +27,7 @@ public:
 
     /// G1(w): fraction of the microfacets facing `w` that are visible from it,
     /// for `w` on either side of the surface. Zero at grazing.
+    /// Precondition: `w` has unit length.
     [[nodiscard]] Real masking(Vector3r w) const noexcept;
 
     /// G2(wo, wi): fraction visible from both directions, with the
@@ -34,6 +35,7 @@ public:
     /// `wi` lie on the same side of the surface. Transmission needs a different
     /// height-correlated form; do not use this for it. Callers check that the
     /// microfacet faces each direction as their geometry requires.
+    /// Precondition: `wo` and `wi` have unit length.
     [[nodiscard]] Real maskingShadowing(Vector3r wo, Vector3r wi) const noexcept;
 
     /// A microfacet normal visible from `wo`, distributed with density

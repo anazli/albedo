@@ -1,5 +1,6 @@
 #pragma once
 
+#include "albedo/material/conductor_material.hpp"
 #include "albedo/material/diffuse_material.hpp"
 #include "albedo/scattering/scattering.hpp"
 #include "albedo/scene/hit_record.hpp"
@@ -20,7 +21,7 @@ template <MaterialLike... Materials>
 using MaterialVariant = std::variant<Materials...>;
 
 /// Any material the renderer supports. A closed set, like `Shape`.
-using Material = MaterialVariant<DiffuseMaterial>;
+using Material = MaterialVariant<DiffuseMaterial, ConductorMaterial>;
 
 /// How light scatters where `hit` lies on a surface made of `material`.
 /// Not `noexcept`: `std::visit` throws `std::bad_variant_access` on a valueless variant.

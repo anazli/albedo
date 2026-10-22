@@ -34,6 +34,7 @@ const Vector3r tilted_out{normalized(Vector3r{0.3, -0.4, 0.8})};
 TEST(LobeTest, typeWithoutPdfIsNotALobe)
 {
     static_assert(LobeLike<LambertLobe>);
+    static_assert(LobeLike<ConductorLobe>);
     static_assert(!LobeLike<LobeWithoutPdf>);
 }
 

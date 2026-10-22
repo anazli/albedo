@@ -13,6 +13,7 @@ target_sources(albedo_core
         albedo/render/render_image.cpp
         albedo/render/tile.cpp
         albedo/sampling/warps.cpp
+        albedo/scattering/conductor_lobe.cpp
         albedo/scattering/fresnel.cpp
         albedo/scattering/ggx_distribution.cpp
         albedo/scattering/lambert_lobe.cpp
@@ -45,6 +46,7 @@ target_sources(albedo_core
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
             albedo/light/sky_light.hpp
+            albedo/material/conductor_material.hpp
             albedo/material/diffuse_material.hpp
             albedo/material/material.hpp
             albedo/render/render_image.hpp
@@ -52,12 +54,14 @@ target_sources(albedo_core
             albedo/sampling/pcg32.hpp
             albedo/sampling/sample_generator.hpp
             albedo/sampling/warps.hpp
+            albedo/scattering/conductor_lobe.hpp
             albedo/scattering/fresnel.hpp
             albedo/scattering/ggx_distribution.hpp
             albedo/scattering/lambert_lobe.hpp
             albedo/scattering/lobe.hpp
             albedo/scattering/scatter_sample.hpp
             albedo/scattering/scattering.hpp
+            albedo/scattering/specular.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
             albedo/scene/scene_object.hpp
