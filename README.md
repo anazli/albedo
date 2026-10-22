@@ -1,6 +1,6 @@
 # Albedo
 
-A physically based path tracer in C++20, built one step at a time.
+A physically based path tracer in C++20. Done with AI.
 
 ![Spheres of glass, gold, copper, silver and blue paint in a red-and-green room lit by a ceiling light](scenes/showcase.png)
 
