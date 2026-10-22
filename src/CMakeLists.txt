@@ -13,6 +13,8 @@ target_sources(albedo_core
         albedo/render/render_image.cpp
         albedo/render/tile.cpp
         albedo/sampling/warps.cpp
+        albedo/scattering/fresnel.cpp
+        albedo/scattering/ggx_distribution.cpp
         albedo/scattering/lambert_lobe.cpp
         albedo/scattering/scattering.cpp
         albedo/scene/scene.cpp
@@ -50,6 +52,8 @@ target_sources(albedo_core
             albedo/sampling/pcg32.hpp
             albedo/sampling/sample_generator.hpp
             albedo/sampling/warps.hpp
+            albedo/scattering/fresnel.hpp
+            albedo/scattering/ggx_distribution.hpp
             albedo/scattering/lambert_lobe.hpp
             albedo/scattering/lobe.hpp
             albedo/scattering/scatter_sample.hpp
