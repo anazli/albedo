@@ -34,6 +34,7 @@ target_sources(albedo_core
             albedo/core/real.hpp
             albedo/core/vector3.hpp
             albedo/estimator/normals_estimator.hpp
+            albedo/estimator/radiance_estimator.hpp
             albedo/estimator/scatter_only_estimator.hpp
             albedo/geometry/shape.hpp
             albedo/geometry/shape_hit.hpp

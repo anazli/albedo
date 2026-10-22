@@ -25,6 +25,7 @@ add_executable(albedo_tests
     core/real_test.cpp
     core/vector3_test.cpp
     estimator/normals_estimator_test.cpp
+    estimator/radiance_estimator_test.cpp
     estimator/scatter_only_estimator_test.cpp
     geometry/shape_test.cpp
     geometry/sphere_test.cpp

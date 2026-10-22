@@ -39,7 +39,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 - [x] 1. Core math: generic `Vector3`, `Point3`, `Normal3`, `Point2`, `Bounds3` (templated on the scalar type), `Ray`, `Interval`, `OrthonormalBasis` *(completed 2026-10-21)*
 - [x] 2. `Rgb`, `PixelBuffer`, `writePpm`, producing a gradient image *(completed 2026-10-21)*
 - [x] 3. `PerspectiveCamera`, `Sphere`, `Scene`, `NormalsEstimator`, producing the first rendered image (`scenes/step-03-normals.png`) *(completed 2026-10-21)*
-- [ ] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test
+- [x] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test; jittered sampling, producing `scenes/step-04-diffuse.png` *(completed 2026-10-22)*
 - [ ] 5. Parallel tile renderer (`std::jthread`); images identical across thread counts
 - [ ] 6. `ConductorLobe` (GGX) and `DielectricLobe`
 - [ ] 7. `PointLight`, `AreaLight`, `PathEstimator` (next-event estimation, MIS, Russian roulette)

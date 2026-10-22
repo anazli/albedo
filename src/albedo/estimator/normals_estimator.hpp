@@ -6,6 +6,8 @@
 
 namespace albedo {
 
+class SampleGenerator;
+
 /// A debugging view rather than physical light: colors each hit by its surface
 /// normal (each axis from [-1, 1] mapped to a channel in [0, 1]), and rays that
 /// miss everything by a white-to-blue sky gradient.
@@ -13,6 +15,14 @@ struct NormalsEstimator {
     /// The color seen along `ray`. Precondition: `ray.direction` can be normalized.
     /// Throws only what `Scene::intersect` throws.
     [[nodiscard]] static Rgb radiance(const Ray& ray, const Scene& scene);
+
+    /// As above; the view is deterministic, so `generator` is left untouched. This
+    /// overload gives the estimator the interface `RadianceEstimator` expects.
+    [[nodiscard]] static Rgb radiance(const Ray& ray, const Scene& scene,
+                                      SampleGenerator& /*generator*/)
+    {
+        return radiance(ray, scene);
+    }
 };
 
 } // namespace albedo

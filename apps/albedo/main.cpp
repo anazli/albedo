@@ -28,7 +28,7 @@ constexpr int min_image_width{16};
 // Deliberate cap on what the command line can request: 8192 x 4608 pixels need
 // about 1.2 GB of accumulators (32 bytes per pixel), within PixelBuffer's limit.
 constexpr int max_image_width{8192};
-constexpr int samples_per_axis{4};
+constexpr int samples_per_axis{16};
 constexpr albedo::Real aspect_ratio{16.0 / 9.0};
 
 constexpr std::string_view usage{"usage: albedo <output.ppm> [width]\n"

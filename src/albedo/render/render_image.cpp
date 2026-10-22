@@ -4,7 +4,8 @@
 #include "albedo/color/rgb.hpp"
 #include "albedo/core/point2.hpp"
 #include "albedo/core/real.hpp"
-#include "albedo/estimator/normals_estimator.hpp"
+#include "albedo/estimator/radiance_estimator.hpp"
+#include "albedo/sampling/sample_generator.hpp"
 
 #include <format>
 #include <stdexcept>
@@ -13,21 +14,22 @@ namespace albedo {
 
 namespace {
 
-// Adds every grid sample of `pixel` to `image`.
+// Adds one jittered sample per grid cell of `pixel` to `image`.
 void renderPixel(const RenderJob& job, Point2i pixel, PixelBuffer& image)
 {
     const int samples{job.samples_per_axis};
     const Real width{static_cast<Real>(image.width())};
     const Real height{static_cast<Real>(image.height())};
+    SampleGenerator generator{SampleGenerator::forPixel(job.seed, pixel, image.width())};
     for (int sy{0}; sy < samples; ++sy) {
         for (int sx{0}; sx < samples; ++sx) {
-            // Sample centers sit at (i + 0.5) / n inside the pixel on each axis.
-            const Real offset_x{(sx + 0.5) / samples};
-            const Real offset_y{(sy + 0.5) / samples};
+            const Point2r jitter{generator.next2D()};
+            const Real offset_x{(sx + jitter.x) / samples};
+            const Real offset_y{(sy + jitter.y) / samples};
             const PixelSample sample{
                 .film = {(pixel.x + offset_x) / width, (pixel.y + offset_y) / height}};
             const Ray ray{job.camera.get().generateRay(sample)};
-            image.addSample(pixel, NormalsEstimator::radiance(ray, job.scene.get()));
+            image.addSample(pixel, radiance(job.estimator, ray, job.scene.get(), generator));
         }
     }
 }

@@ -1,9 +1,11 @@
 #pragma once
 
 #include "albedo/camera/perspective_camera.hpp"
+#include "albedo/estimator/radiance_estimator.hpp"
 #include "albedo/image/pixel_buffer.hpp"
 #include "albedo/scene/scene.hpp"
 
+#include <cstdint>
 #include <functional>
 
 namespace albedo {
@@ -17,15 +19,22 @@ struct RenderJob {
     std::reference_wrapper<const PerspectiveCamera> camera;
     /// What to look at.
     std::reference_wrapper<const Scene> scene;
-    /// Each pixel is sampled on an n x n grid of evenly spaced points.
+    /// Each pixel is split into an n x n grid of cells, with one sample at a
+    /// random point of each cell.
     int samples_per_axis{1};
+    /// Selects the random numbers; the same job and seed give the same image.
+    std::uint64_t seed{0};
+    /// How the radiance along each camera ray is estimated.
+    RadianceEstimator estimator{ScatterOnlyEstimator{}};
 };
 
-/// Renders `job` into `image` with the normals estimator, adding
-/// `samples_per_axis`^2 samples to every pixel. A fixed grid rather than random
-/// positions keeps the output deterministic until a sampler exists.
+/// Renders `job` into `image`, adding `samples_per_axis`^2 samples to every
+/// pixel. Stratifying the samples (one per grid cell, jittered inside it)
+/// spreads them more evenly than independent random positions, at no extra cost.
+/// Each pixel draws from its own `SampleGenerator`: first a sample's position in
+/// its cell, then whatever the estimator needs, cells in row-major order.
 /// Throws `std::invalid_argument` if `samples_per_axis` is not positive, and
-/// otherwise only what `Scene::intersect` throws.
+/// otherwise only what the estimator throws.
 void renderImage(const RenderJob& job, PixelBuffer& image);
 
 } // namespace albedo
