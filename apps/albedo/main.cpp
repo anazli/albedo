@@ -4,6 +4,7 @@
 #include "albedo/geometry/sphere.hpp"
 #include "albedo/image/pixel_buffer.hpp"
 #include "albedo/image/ppm.hpp"
+#include "albedo/material/diffuse_material.hpp"
 #include "albedo/render/render_image.hpp"
 #include "albedo/scene/scene.hpp"
 
@@ -47,20 +48,24 @@ std::optional<int> parseImageWidth(std::string_view text)
 }
 
 // A large sphere as the ground, a main sphere and smaller ones at varied
-// depths, so the normal colors show both curvature and perspective.
+// depths in matte colors (the far left one gray like the ground), under a
+// white-to-blue sky.
 albedo::Scene buildScene()
 {
+    using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
+    const DiffuseMaterial ground{.albedo = {0.5, 0.5, 0.5}};
     albedo::Scene scene;
-    scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0});
-    scene.add(Sphere{Point3r{0.0, 1.0, 0.0}, 1.0});
-    scene.add(Sphere{Point3r{-2.3, 0.7, -0.6}, 0.7});
-    scene.add(Sphere{Point3r{2.2, 0.55, 0.4}, 0.55});
-    scene.add(Sphere{Point3r{1.1, 0.3, 1.9}, 0.3});
-    scene.add(Sphere{Point3r{-1.0, 0.25, 2.3}, 0.25});
-    scene.add(Sphere{Point3r{4.2, 1.2, -4.0}, 1.2});
-    scene.add(Sphere{Point3r{-4.6, 1.5, -5.5}, 1.5});
+    scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0}, ground);
+    scene.add(Sphere{Point3r{0.0, 1.0, 0.0}, 1.0}, DiffuseMaterial{.albedo = {0.8, 0.3, 0.2}});
+    scene.add(Sphere{Point3r{-2.3, 0.7, -0.6}, 0.7}, DiffuseMaterial{.albedo = {0.2, 0.5, 0.8}});
+    scene.add(Sphere{Point3r{2.2, 0.55, 0.4}, 0.55}, DiffuseMaterial{.albedo = {0.3, 0.7, 0.3}});
+    scene.add(Sphere{Point3r{1.1, 0.3, 1.9}, 0.3}, DiffuseMaterial{.albedo = {0.9, 0.8, 0.2}});
+    scene.add(Sphere{Point3r{-1.0, 0.25, 2.3}, 0.25}, DiffuseMaterial{.albedo = {0.9, 0.9, 0.9}});
+    scene.add(Sphere{Point3r{4.2, 1.2, -4.0}, 1.2}, DiffuseMaterial{.albedo = {0.6, 0.4, 0.7}});
+    scene.add(Sphere{Point3r{-4.6, 1.5, -5.5}, 1.5}, ground);
+    scene.setSky({.nadir = {1.0, 1.0, 1.0}, .zenith = {0.5, 0.7, 1.0}});
     return scene;
 }
 

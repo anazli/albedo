@@ -26,7 +26,7 @@ public:
     [[nodiscard]] Rgb evaluate(Vector3r wo, Vector3r wi) const;
 
     /// A world-space incident direction for the random point `u` in [0, 1]^2, or
-    /// nothing when the lobe cannot scatter light towards `wo`.
+    /// nothing when the lobe produces no sample (see the lobe's `sample`).
     /// Throws only what `sample(const Lobe&, ...)` throws.
     [[nodiscard]] std::optional<ScatterSample> sample(Vector3r wo, Point2r u) const;
 

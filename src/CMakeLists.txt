@@ -5,9 +5,11 @@ target_sources(albedo_core
         albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
         albedo/estimator/normals_estimator.cpp
+        albedo/estimator/scatter_only_estimator.cpp
         albedo/geometry/sphere.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
+        albedo/light/sky_light.cpp
         albedo/render/render_image.cpp
         albedo/sampling/warps.cpp
         albedo/scattering/lambert_lobe.cpp
@@ -32,11 +34,13 @@ target_sources(albedo_core
             albedo/core/real.hpp
             albedo/core/vector3.hpp
             albedo/estimator/normals_estimator.hpp
+            albedo/estimator/scatter_only_estimator.hpp
             albedo/geometry/shape.hpp
             albedo/geometry/shape_hit.hpp
             albedo/geometry/sphere.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
+            albedo/light/sky_light.hpp
             albedo/material/diffuse_material.hpp
             albedo/material/material.hpp
             albedo/render/render_image.hpp
@@ -49,6 +53,7 @@ target_sources(albedo_core
             albedo/scattering/scattering.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
+            albedo/scene/scene_object.hpp
 )
 target_compile_features(albedo_core PUBLIC cxx_std_20)
 albedo_set_warnings(albedo_core)

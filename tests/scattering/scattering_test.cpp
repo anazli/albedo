@@ -12,6 +12,7 @@ namespace albedo {
 namespace {
 
 using test_support::default_tolerance;
+using test_support::exact_tolerance;
 using test_support::expectNear;
 using test_support::requireValue;
 
@@ -43,12 +44,12 @@ TEST(ScatteringTest, evaluatesToBlackAcrossTheWorldNormal)
 
 TEST(ScatteringTest, pdfIsZeroAcrossTheWorldNormal)
 {
-    EXPECT_NEAR(scattering.pdf(besideNormal(1), below_with_positive_z), 0.0, 0.0);
+    EXPECT_NEAR(scattering.pdf(besideNormal(1), below_with_positive_z), 0.0, exact_tolerance);
 }
 
 TEST(ScatteringTest, pdfIsZeroFromBelowTheWorldNormal)
 {
-    EXPECT_NEAR(scattering.pdf(below_with_positive_z, besideNormal(1)), 0.0, 0.0);
+    EXPECT_NEAR(scattering.pdf(below_with_positive_z, besideNormal(1)), 0.0, exact_tolerance);
 }
 
 TEST(ScatteringTest, pdfUsesCosineToTheWorldNormal)

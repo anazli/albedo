@@ -1,6 +1,7 @@
 #include "albedo/render/render_image.hpp"
 
 #include "albedo/estimator/normals_estimator.hpp"
+#include "albedo/material/material.hpp"
 #include "support/expect_near.hpp"
 
 #include <gtest/gtest.h>
@@ -13,6 +14,9 @@ namespace albedo {
 namespace {
 
 using test_support::expectNear;
+
+// Any material will do where only geometry matters.
+const Material matte{DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}}};
 
 PerspectiveCamera testCamera()
 {
@@ -63,7 +67,7 @@ TEST(RenderImageTest, rendersShapesInTheScene)
     // A sphere filling the view: every pixel sees a normal, none sees the sky.
     const PerspectiveCamera camera{testCamera()};
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 2.9});
+    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 2.9}, matte);
     PixelBuffer image{1, 1};
 
     renderImage({.camera = camera, .scene = scene, .samples_per_axis = 1}, image);
@@ -77,7 +81,7 @@ TEST(RenderImageTest, mapsPixelsToFilmOnNonSquareImageWithoutMirroring)
     // top-left pixel: swapping width and height, or mirroring x or y, changes a pixel.
     const PerspectiveCamera camera{testCamera()};
     Scene scene;
-    scene.add(Sphere{Point3r{-4.5, 1.5, -3.0}, 1.0});
+    scene.add(Sphere{Point3r{-4.5, 1.5, -3.0}, 1.0}, matte);
     PixelBuffer image{4, 2};
 
     renderImage({.camera = camera, .scene = scene, .samples_per_axis = 1}, image);
@@ -97,7 +101,7 @@ TEST(RenderImageTest, offCenterSphereBreaksBothMirrorSymmetries)
     // must look different from its horizontal and its vertical mirror image.
     const PerspectiveCamera camera{testCamera()};
     Scene scene;
-    scene.add(Sphere{Point3r{-4.5, 1.5, -3.0}, 1.0});
+    scene.add(Sphere{Point3r{-4.5, 1.5, -3.0}, 1.0}, matte);
 
     const Rgb top_left{radianceAt(camera, scene, {0.125, 0.25})};
     const Rgb top_right{radianceAt(camera, scene, {0.875, 0.25})};

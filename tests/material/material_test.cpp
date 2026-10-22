@@ -50,7 +50,7 @@ TEST(MaterialTest, diffuseMaterialDoesNotTransmit)
     EXPECT_TRUE(isBlack(scattering.evaluate(wo, normalized(Vector3r{-1.0, 0.5, 0.3}))));
 }
 
-TEST(MaterialTest, diffuseMaterialSamplesAroundTheHitNormal)
+TEST(MaterialTest, diffuseMaterialPdfUsesTheHitNormal)
 {
     // Only the cosine to the hit normal (+x here) fixes the pdf, so a basis built
     // from any other axis gives a different value.

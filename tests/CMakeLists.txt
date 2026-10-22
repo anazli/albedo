@@ -25,10 +25,12 @@ add_executable(albedo_tests
     core/real_test.cpp
     core/vector3_test.cpp
     estimator/normals_estimator_test.cpp
+    estimator/scatter_only_estimator_test.cpp
     geometry/shape_test.cpp
     geometry/sphere_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
+    light/sky_light_test.cpp
     material/material_test.cpp
     render/render_image_test.cpp
     sampling/pcg32_test.cpp
