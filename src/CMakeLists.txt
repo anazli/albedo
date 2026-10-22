@@ -10,6 +10,8 @@ target_sources(albedo_core
         albedo/image/ppm.cpp
         albedo/render/render_image.cpp
         albedo/sampling/warps.cpp
+        albedo/scattering/lambert_lobe.cpp
+        albedo/scattering/scattering.cpp
         albedo/scene/scene.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -35,10 +37,16 @@ target_sources(albedo_core
             albedo/geometry/sphere.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
+            albedo/material/diffuse_material.hpp
+            albedo/material/material.hpp
             albedo/render/render_image.hpp
             albedo/sampling/pcg32.hpp
             albedo/sampling/sample_generator.hpp
             albedo/sampling/warps.hpp
+            albedo/scattering/lambert_lobe.hpp
+            albedo/scattering/lobe.hpp
+            albedo/scattering/scatter_sample.hpp
+            albedo/scattering/scattering.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
 )
