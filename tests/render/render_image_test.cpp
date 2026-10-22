@@ -283,5 +283,54 @@ TEST(RenderImageTest, rejectsNonPositiveSamplesPerAxis)
                  std::invalid_argument);
 }
 
+TEST(RenderImageTest, imageIsIdenticalForEveryThreadCount)
+{
+    // Sides that are not multiples of the tile size, several bounces and a
+    // gradient sky, so every pixel draws a different amount of random numbers.
+    const PerspectiveCamera camera{testCamera()};
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, -101.0, -3.0}, 100.0},
+              DiffuseMaterial{.albedo = {0.6, 0.6, 0.6}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 1.0}, DiffuseMaterial{.albedo = {0.8, 0.3, 0.2}});
+    scene.setSky({.nadir = {1.0, 1.0, 1.0}, .zenith = {0.5, 0.7, 1.0}});
+    constexpr int width{37};
+    constexpr int height{21};
+    PixelBuffer reference{width, height};
+    renderImage({.camera = camera, .scene = scene, .samples_per_axis = 2, .seed = 3}, reference);
+
+    for (const int thread_count : {2, 3, 8}) {
+        SCOPED_TRACE(::testing::Message() << thread_count << " threads");
+        PixelBuffer image{width, height};
+        renderImage({.camera = camera,
+                     .scene = scene,
+                     .samples_per_axis = 2,
+                     .seed = 3,
+                     .thread_count = thread_count},
+                    image);
+        for (int y{0}; y < height; ++y) {
+            for (int x{0}; x < width; ++x) {
+                SCOPED_TRACE(::testing::Message() << "pixel " << x << ", " << y);
+                expectNear(image.average({.x = x, .y = y}), reference.average({.x = x, .y = y}),
+                           test_support::exact_tolerance);
+            }
+        }
+    }
+}
+
+TEST(RenderImageTest, rejectsNonPositiveThreadCount)
+{
+    const PerspectiveCamera camera{testCamera()};
+    const Scene scene;
+    PixelBuffer image{1, 1};
+
+    EXPECT_THROW(renderImage({.camera = camera, .scene = scene, .thread_count = 0}, image),
+                 std::invalid_argument);
+}
+
+TEST(RenderImageTest, atLeastOneThreadIsAvailable)
+{
+    EXPECT_GE(availableThreadCount(), 1);
+}
+
 } // namespace
 } // namespace albedo

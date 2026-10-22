@@ -34,6 +34,7 @@ add_executable(albedo_tests
     light/sky_light_test.cpp
     material/material_test.cpp
     render/render_image_test.cpp
+    render/tile_test.cpp
     sampling/pcg32_test.cpp
     sampling/sample_generator_test.cpp
     sampling/warps_test.cpp
