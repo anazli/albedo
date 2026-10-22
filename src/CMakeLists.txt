@@ -11,6 +11,7 @@ target_sources(albedo_core
         albedo/image/ppm.cpp
         albedo/light/sky_light.cpp
         albedo/render/render_image.cpp
+        albedo/render/tile.cpp
         albedo/sampling/warps.cpp
         albedo/scattering/lambert_lobe.cpp
         albedo/scattering/scattering.cpp
@@ -45,6 +46,7 @@ target_sources(albedo_core
             albedo/material/diffuse_material.hpp
             albedo/material/material.hpp
             albedo/render/render_image.hpp
+            albedo/render/tile.hpp
             albedo/sampling/pcg32.hpp
             albedo/sampling/sample_generator.hpp
             albedo/sampling/warps.hpp
@@ -57,5 +59,7 @@ target_sources(albedo_core
             albedo/scene/scene_object.hpp
 )
 target_compile_features(albedo_core PUBLIC cxx_std_20)
+find_package(Threads REQUIRED)
+target_link_libraries(albedo_core PRIVATE Threads::Threads)
 albedo_set_warnings(albedo_core)
 albedo_enable_sanitizers(albedo_core)

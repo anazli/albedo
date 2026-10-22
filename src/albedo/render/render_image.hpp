@@ -26,15 +26,26 @@ struct RenderJob {
     std::uint64_t seed{0};
     /// How the radiance along each camera ray is estimated.
     RadianceEstimator estimator{ScatterOnlyEstimator{}};
+    /// Threads to render with, including the calling one. The image does not
+    /// depend on it; see `availableThreadCount` for a sensible value.
+    int thread_count{1};
 };
+
+/// The number of threads the hardware can run at once, or 1 if unknown.
+[[nodiscard]] int availableThreadCount() noexcept;
 
 /// Renders `job` into `image`, adding `samples_per_axis`^2 samples to every
 /// pixel. Stratifying the samples (one per grid cell, jittered inside it)
 /// spreads them more evenly than independent random positions, at no extra cost.
 /// Each pixel draws from its own `SampleGenerator`: first a sample's position in
-/// its cell, then whatever the estimator needs, cells in row-major order.
-/// Throws `std::invalid_argument` if `samples_per_axis` is not positive, and
-/// otherwise only what the estimator throws.
+/// its cell, then whatever the estimator needs, cells in row-major order. The
+/// image is split into tiles rendered on `thread_count` threads; since every
+/// pixel is computed by one thread from its own generator, the result is the
+/// same for any thread count.
+/// Throws `std::invalid_argument` if `samples_per_axis` or `thread_count` is not
+/// positive, `std::system_error` if a thread cannot be started, and otherwise
+/// what the estimator throws (rethrown after all threads have stopped). After an
+/// exception, which pixels of `image` received samples is unspecified.
 void renderImage(const RenderJob& job, PixelBuffer& image);
 
 } // namespace albedo

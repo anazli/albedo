@@ -86,7 +86,10 @@ void renderTo(const std::filesystem::path& output, int width)
     const albedo::Scene scene{buildScene()};
     const albedo::PerspectiveCamera camera{buildCamera(width, height)};
     albedo::PixelBuffer image{width, height};
-    albedo::renderImage({.camera = camera, .scene = scene, .samples_per_axis = samples_per_axis},
+    albedo::renderImage({.camera = camera,
+                         .scene = scene,
+                         .samples_per_axis = samples_per_axis,
+                         .thread_count = albedo::availableThreadCount()},
                         image);
     albedo::writePpm(output, image);
 }
