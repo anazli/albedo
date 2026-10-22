@@ -6,7 +6,10 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <limits>
+#include <optional>
+#include <variant>
 
 namespace albedo {
 namespace {
@@ -168,6 +171,140 @@ TEST(SceneDeathTest, scatteringAtRejectsAHitFromAnotherScene)
                                 .object = 3};
 
     EXPECT_DEBUG_DEATH(static_cast<void>(scene.scatteringAt(foreign_hit)), "");
+}
+
+TEST(SceneTest, newSceneHasNoLights)
+{
+    const Scene scene;
+
+    EXPECT_TRUE(scene.lights().empty());
+}
+
+TEST(SceneTest, addLightAppendsItAndReturnsItsIndex)
+{
+    Scene scene;
+
+    const std::size_t first{scene.addLight(PointLight{.position = {0.0, 1.0, 0.0}})};
+    const std::size_t second{scene.addLight(PointLight{.position = {0.0, 2.0, 0.0}})};
+
+    EXPECT_EQ(first, 0U);
+    EXPECT_EQ(second, 1U);
+    EXPECT_EQ(scene.lights().size(), 2U);
+}
+
+TEST(SceneTest, settingTheSkyAddsItAsOneLight)
+{
+    // Setting it again replaces it rather than adding a second sky.
+    Scene scene;
+
+    scene.setSky(SkyLight::uniform({0.1, 0.1, 0.1}));
+    scene.setSky(SkyLight::uniform({0.4, 0.5, 0.6}));
+
+    ASSERT_EQ(scene.lights().size(), 1U);
+    ASSERT_TRUE(std::holds_alternative<SkyLight>(scene.lights()[0]));
+    expectNear(scene.sky().emittedRadiance({0.0, 1.0, 0.0}), Rgb{0.4, 0.5, 0.6});
+}
+
+TEST(SceneTest, addAreaLightAddsBothAnObjectAndALight)
+{
+    Scene scene;
+
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, {2.0, 2.0, 2.0}, matte);
+
+    EXPECT_EQ(scene.shapeCount(), 1U);
+    ASSERT_EQ(scene.lights().size(), 1U);
+    EXPECT_TRUE(std::holds_alternative<AreaLight>(scene.lights()[0]));
+}
+
+TEST(SceneTest, hitOnAnAreaLightSeesItsRadianceAndIndex)
+{
+    Scene scene;
+    scene.addLight(PointLight{.position = {0.0, 9.0, 0.0}});
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, {2.0, 3.0, 4.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    expectNear(scene.emittedRadiance(hit), Rgb{2.0, 3.0, 4.0});
+    EXPECT_EQ(scene.lightIndexOf(hit), std::optional<std::size_t>{1});
+}
+
+TEST(SceneTest, ordinaryObjectsEmitNothing)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_TRUE(isBlack(scene.emittedRadiance(hit)));
+    EXPECT_FALSE(scene.lightIndexOf(hit).has_value());
+}
+
+TEST(SceneTest, areaLightSeenFromInsideEmitsNothing)
+{
+    Scene scene;
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, 0.0}, 2.0}, {2.0, 3.0, 4.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_TRUE(isBlack(scene.emittedRadiance(hit)));
+}
+
+TEST(SceneTest, occludedFindsABlockerInsideTheRange)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
+}
+
+TEST(SceneTest, occludedIgnoresBlockersBeyondTheRange)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+
+    EXPECT_FALSE(scene.occluded(forward_ray, {.min = 0.0, .max = 3.0}));
+}
+
+TEST(SceneDeathTest, lightIndexOfRejectsAHitFromAnotherScene)
+{
+#ifdef NDEBUG
+    // Without the assert the call would read past the end of the object list.
+    GTEST_SKIP() << "precondition asserts are compiled out";
+#endif
+    const Scene scene;
+    const HitRecord foreign_hit{.t = 1.0,
+                                .point = {0.0, 0.0, -1.0},
+                                .normal = {0.0, 0.0, 1.0},
+                                .front_face = true,
+                                .object = 3};
+
+    EXPECT_DEATH(static_cast<void>(scene.lightIndexOf(foreign_hit)), "");
+}
+
+TEST(SceneTest, settingTheSkyAfterOtherLightsReplacesItInPlace)
+{
+    Scene scene;
+    scene.addLight(PointLight{.position = {0.0, 1.0, 0.0}});
+
+    scene.setSky(SkyLight::uniform({0.1, 0.1, 0.1}));
+    scene.setSky(SkyLight::uniform({0.4, 0.5, 0.6}));
+
+    ASSERT_EQ(scene.lights().size(), 2U);
+    EXPECT_TRUE(std::holds_alternative<PointLight>(scene.lights()[0]));
+    EXPECT_TRUE(std::holds_alternative<SkyLight>(scene.lights()[1]));
+    expectNear(scene.sky().emittedRadiance({0.0, 1.0, 0.0}), Rgb{0.4, 0.5, 0.6});
+}
+
+template <typename LightType>
+concept CanAddLight = requires(Scene scene, LightType light) { scene.addLight(light); };
+
+TEST(SceneTest, addLightTakesOnlyPointLights)
+{
+    // Area lights and the sky must go through addAreaLight and setSky, which keep
+    // them linked to what rays can hit.
+    static_assert(CanAddLight<PointLight>);
+    static_assert(!CanAddLight<AreaLight>);
+    static_assert(!CanAddLight<SkyLight>);
 }
 
 } // namespace

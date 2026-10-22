@@ -3,13 +3,52 @@
 #include "albedo/core/normal3.hpp"
 #include "albedo/core/vector3.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <variant>
 
 namespace albedo {
 
 void Scene::add(const Shape& shape, const Material& material)
 {
-    objects.push_back({.shape = shape, .material = material});
+    objects.push_back({.shape = shape, .material = material, .light = std::nullopt});
+}
+
+void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& material)
+{
+    // Make room first so the object cannot fail to be added after its light was:
+    // that would leave a light no ray can hit. Doubling keeps repeated calls
+    // amortized constant, as push_back's own growth would.
+    if (objects.size() == objects.capacity()) {
+        objects.reserve(std::max<std::size_t>(1, 2 * objects.capacity()));
+    }
+    const std::size_t light{appendLight(AreaLight{.shape = sphere, .radiance = radiance})};
+    objects.push_back({.shape = sphere, .material = material, .light = light});
+}
+
+std::size_t Scene::addLight(const PointLight& light)
+{
+    return appendLight(light);
+}
+
+void Scene::setSky(const SkyLight& new_sky)
+{
+    if (sky_index) {
+        light_list[*sky_index] = new_sky;
+    } else {
+        sky_index = appendLight(new_sky);
+    }
+}
+
+SkyLight Scene::sky() const noexcept
+{
+    if (!sky_index) {
+        return {};
+    }
+    // get_if rather than std::get keeps the exception path out of a noexcept function.
+    const auto* stored{std::get_if<SkyLight>(&light_list[*sky_index])};
+    assert(stored != nullptr && "the sky index must refer to a SkyLight");
+    return *stored;
 }
 
 std::optional<HitRecord> Scene::intersect(const Ray& ray, Interval t_range) const
@@ -41,6 +80,36 @@ Scattering Scene::scatteringAt(const HitRecord& hit) const
 {
     assert(hit.object < objects.size() && "hit does not come from this scene");
     return albedo::scatteringAt(objects[hit.object].material, hit);
+}
+
+Rgb Scene::emittedRadiance(const HitRecord& hit) const noexcept
+{
+    const auto light{lightIndexOf(hit)};
+    if (!light) {
+        return {};
+    }
+    const auto* area{std::get_if<AreaLight>(&light_list[*light])};
+    return area != nullptr ? area->emittedRadiance(hit) : Rgb{};
+}
+
+std::optional<std::size_t> Scene::lightIndexOf(const HitRecord& hit) const noexcept
+{
+    assert(hit.object < objects.size() && "hit does not come from this scene");
+    return objects[hit.object].light;
+}
+
+bool Scene::occluded(const Ray& ray, Interval t_range) const
+{
+    // Any hit will do, so the search stops at the first one.
+    return std::ranges::any_of(objects, [&](const SceneObject& object) {
+        return albedo::intersect(object.shape, ray, t_range).has_value();
+    });
+}
+
+std::size_t Scene::appendLight(const Light& light)
+{
+    light_list.push_back(light);
+    return light_list.size() - 1;
 }
 
 } // namespace albedo

@@ -212,5 +212,59 @@ TEST(ScatterOnlyEstimatorTest, whiteFurnaceHoldsThroughSmoothGlass)
     }
 }
 
+TEST(ScatterOnlyEstimatorTest, cameraRaySeesAnAreaLight)
+{
+    constexpr Rgb emitted{4.0, 3.0, 2.0};
+    Scene scene;
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, emitted,
+                       DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+    SampleGenerator generator{testGenerator()};
+
+    expectNear(ScatterOnlyEstimator{}.radiance(down_minus_z, scene, generator), emitted,
+               estimate_tolerance);
+}
+
+TEST(ScatterOnlyEstimatorTest, diffuseGroundUnderAnAreaLightMatchesTheAnalyticRadiance)
+{
+    // A sphere light straight above a diffuse plane gives irradiance
+    // E = L pi sin^2(theta_max), so the plane reflects albedo E / pi =
+    // albedo L sin^2(theta_max). Here sin^2 = 2^2 / 5^2.
+    constexpr Rgb emitted{5.0, 5.0, 5.0};
+    constexpr Real albedo{0.5};
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0},
+              DiffuseMaterial{.albedo = {albedo, albedo, albedo}});
+    scene.addAreaLight(Sphere{Point3r{0.0, 5.0, 0.0}, 2.0}, emitted,
+                       DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+    SampleGenerator generator{testGenerator()};
+    // Straight down at the point under the light, from below the light.
+    const Ray at_ground{.origin = {0.0, 1.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+    constexpr int sample_count{100'000};
+
+    Rgb sum{};
+    for (int i{0}; i < sample_count; ++i) {
+        sum += ScatterOnlyEstimator{}.radiance(at_ground, scene, generator);
+    }
+
+    // Each sample is 0 or albedo L = 2.5, hit with probability 0.16: standard
+    // deviation about 0.92, so 0.02 is over 6 standard errors.
+    const Real expected{albedo * emitted.g * 4.0 / 25.0};
+    expectNear(sum / sample_count, Rgb{expected, expected, expected}, 0.02);
+}
+
+TEST(ScatterOnlyEstimatorTest, emissionSeenBeforeTheScatterLimitCounts)
+{
+    // The limit stops scattering, not the light already reached.
+    constexpr Rgb emitted{4.0, 3.0, 2.0};
+    Scene scene;
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, emitted,
+                       DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}});
+    SampleGenerator generator{testGenerator()};
+
+    expectNear(
+        ScatterOnlyEstimator{.max_scatter_count = 0}.radiance(down_minus_z, scene, generator),
+        emitted, estimate_tolerance);
+}
+
 } // namespace
 } // namespace albedo

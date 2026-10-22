@@ -42,7 +42,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 - [x] 4. `Pcg32`, `SampleGenerator`, sample warps, `LambertLobe`, `SkyLight`, `ScatterOnlyEstimator`; white furnace test; jittered sampling, producing `scenes/step-04-diffuse.png` *(completed 2026-10-22)*
 - [x] 5. Parallel tile renderer (`std::jthread`); images identical across thread counts *(completed 2026-10-22)*
 - [x] 6. `ConductorLobe` (GGX) and `DielectricLobe`, producing `scenes/step-06-metal-glass.png` *(completed 2026-10-22)*
-- [ ] 7. `PointLight`, `AreaLight`, `PathEstimator` (next-event estimation, MIS, Russian roulette)
+- [x] 7. `PointLight`, `AreaLight`, `PathEstimator` (next-event estimation, MIS, Russian roulette), producing `scenes/step-07-path-tracing.png` *(completed 2026-10-22)*
 - [ ] 8. `Triangle`, `TriangleMesh`, BVH (SAH build), OBJ loader *(security-relevant: input parsing)*
 - [ ] 9. Textures and `Transform`-based instancing
 - [ ] 10. Text scene format and parser *(security-relevant: input parsing)*

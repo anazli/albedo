@@ -1,8 +1,11 @@
 #include "albedo/light/sky_light.hpp"
 
 #include "support/expect_near.hpp"
+#include "support/require_value.hpp"
 
 #include <gtest/gtest.h>
+
+#include <cmath>
 
 namespace albedo {
 namespace {
@@ -49,6 +52,27 @@ TEST(SkyLightTest, gradientDependsOnlyOnHeight)
 {
     expectNear(gradient.emittedRadiance(normalized(Vector3r{1.0, 0.5, 0.0})),
                gradient.emittedRadiance(normalized(Vector3r{0.0, 0.5, -1.0})));
+}
+
+TEST(SkyLightTest, sampleCarriesTheSkyRadianceInItsDirection)
+{
+    const LightSample sample{
+        test_support::requireValue(gradient.sampleIncidentLight({1.0, 2.0, 3.0}, {0.3, 0.7}))};
+
+    EXPECT_NEAR(length(sample.direction), 1.0, test_support::default_tolerance);
+    expectNear(sample.radiance, gradient.emittedRadiance(sample.direction));
+    EXPECT_TRUE(std::isinf(sample.distance));
+    EXPECT_FALSE(sample.delta);
+}
+
+TEST(SkyLightTest, sampleAndPdfAreUniformOverTheSphere)
+{
+    const LightSample sample{
+        test_support::requireValue(gradient.sampleIncidentLight({1.0, 2.0, 3.0}, {0.3, 0.7}))};
+
+    EXPECT_NEAR(sample.pdf, 1 / (4 * pi), test_support::default_tolerance);
+    EXPECT_NEAR(gradient.incidentLightPdf({1.0, 2.0, 3.0}, {0.0, -1.0, 0.0}), 1 / (4 * pi),
+                test_support::default_tolerance);
 }
 
 } // namespace

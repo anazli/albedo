@@ -3,6 +3,7 @@
 #include "albedo/color/rgb.hpp"
 #include "albedo/core/ray.hpp"
 #include "albedo/estimator/normals_estimator.hpp"
+#include "albedo/estimator/path_estimator.hpp"
 #include "albedo/estimator/scatter_only_estimator.hpp"
 #include "albedo/sampling/sample_generator.hpp"
 #include "albedo/scene/scene.hpp"
@@ -25,7 +26,8 @@ using RadianceEstimatorVariant = std::variant<Estimators...>;
 
 /// Any way the renderer can estimate the radiance along a camera ray. A closed
 /// set, like `Shape`.
-using RadianceEstimator = RadianceEstimatorVariant<NormalsEstimator, ScatterOnlyEstimator>;
+using RadianceEstimator =
+    RadianceEstimatorVariant<NormalsEstimator, ScatterOnlyEstimator, PathEstimator>;
 
 /// One sample of the radiance arriving along `ray`, from the held estimator.
 /// Not `noexcept`: `std::visit` throws `std::bad_variant_access` on a valueless
