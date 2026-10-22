@@ -12,7 +12,8 @@ namespace {
 // Loose enough for vectors normalized in float precision or built from sums.
 constexpr Real unit_length_tolerance{1e-6};
 
-bool isUnit(Vector3r v) noexcept
+// Used only in assertions, which release builds compile out.
+[[maybe_unused]] bool isUnit(Vector3r v) noexcept
 {
     return std::abs(length(v) - 1) < unit_length_tolerance;
 }

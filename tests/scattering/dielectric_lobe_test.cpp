@@ -290,5 +290,15 @@ TEST(DielectricLobeTest, roughMatchedIndicesPassStraightThrough)
     EXPECT_TRUE(sample.specular);
 }
 
+TEST(DielectricLobeTest, roughMatchedIndicesHaveNoDensity)
+{
+    // Without a change of index no microfacet bends wo into any other direction,
+    // so there is no density anywhere, not just away from straight through.
+    const DielectricLobe lobe{.eta = 1.0, .alpha = 0.4};
+
+    EXPECT_TRUE(isBlack(lobe.evaluate(tilted_wo, below)));
+    EXPECT_NEAR(lobe.pdf(tilted_wo, below), 0.0, exact_tolerance);
+}
+
 } // namespace
 } // namespace albedo
