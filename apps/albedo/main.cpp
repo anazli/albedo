@@ -2,9 +2,11 @@
 #include "albedo/color/rgb.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
+#include "albedo/estimator/path_estimator.hpp"
 #include "albedo/geometry/sphere.hpp"
 #include "albedo/image/pixel_buffer.hpp"
 #include "albedo/image/ppm.hpp"
+#include "albedo/light/point_light.hpp"
 #include "albedo/material/conductor_material.hpp"
 #include "albedo/material/dielectric_material.hpp"
 #include "albedo/material/diffuse_material.hpp"
@@ -64,7 +66,8 @@ constexpr albedo::Rgb silver_k{4.409, 3.597, 2.648};
 
 // A large matte ground, smooth glass in the middle, rough gold and copper,
 // a silver mirror, a small sphere of frosted glass, and rough silver and a
-// matte sphere at the back, under a white-to-blue sky.
+// matte sphere at the back. Lit by a warm sphere light (soft shadows), a cool
+// point light (hard shadows) and a dim dusk sky.
 albedo::Scene buildScene()
 {
     using albedo::ConductorMaterial;
@@ -88,7 +91,10 @@ albedo::Scene buildScene()
     scene.add(Sphere{Point3r{4.2, 1.2, -4.0}, 1.2}, DiffuseMaterial{.albedo = {0.6, 0.4, 0.7}});
     scene.add(Sphere{Point3r{-4.6, 1.5, -5.5}, 1.5},
               ConductorMaterial{.eta = silver_eta, .k = silver_k, .roughness = 0.5});
-    scene.setSky({.nadir = {1.0, 1.0, 1.0}, .zenith = {0.5, 0.7, 1.0}});
+    scene.addAreaLight(Sphere{Point3r{2.5, 4.5, 2.5}, 0.8}, {14.0, 11.0, 8.0},
+                       DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+    scene.addLight(albedo::PointLight{.position = {-3.5, 3.0, 3.0}, .intensity = {4.0, 6.0, 10.0}});
+    scene.setSky({.nadir = {0.10, 0.09, 0.08}, .zenith = {0.10, 0.14, 0.25}});
     return scene;
 }
 
@@ -112,6 +118,7 @@ void renderTo(const std::filesystem::path& output, int width)
     albedo::renderImage({.camera = camera,
                          .scene = scene,
                          .samples_per_axis = samples_per_axis,
+                         .estimator = albedo::PathEstimator{},
                          .thread_count = albedo::availableThreadCount()},
                         image);
     albedo::writePpm(output, image);
