@@ -18,7 +18,7 @@ using test_support::requireValue;
 // Has `evaluate` and `sample` but no `pdf`, so it must not count as a lobe.
 struct LobeWithoutPdf {
     [[nodiscard]] static Rgb evaluate(Vector3r /*wo*/, Vector3r /*wi*/) noexcept { return {}; }
-    [[nodiscard]] static std::optional<ScatterSample> sample(Vector3r /*wo*/,
+    [[nodiscard]] static std::optional<ScatterSample> sample(Vector3r /*wo*/, Real /*u_choice*/,
                                                              Point2r /*u*/) noexcept
     {
         return std::nullopt;
@@ -64,8 +64,8 @@ TEST(LobeTest, forwardsSample)
 {
     const Lobe lobe{lambert};
 
-    expectNear(requireValue(sample(lobe, up, {0.25, 0.75})).direction,
-               requireValue(lambert.sample(up, {0.25, 0.75})).direction);
+    expectNear(requireValue(sample(lobe, up, 0.5, {0.25, 0.75})).direction,
+               requireValue(lambert.sample(up, 0.5, {0.25, 0.75})).direction);
 }
 
 } // namespace

@@ -101,7 +101,7 @@ TEST(ConductorLobeTest, roughSampleWeightMatchesEvaluateAndPdf)
     int kept{0};
 
     for (int i{0}; i < 1000; ++i) {
-        const auto sample{lobe.sample(tilted_wo, nextPoint(random))};
+        const auto sample{lobe.sample(tilted_wo, 0.5, nextPoint(random))};
         if (!sample) {
             continue;
         }
@@ -131,7 +131,7 @@ TEST(ConductorLobeTest, roughSamplingEstimatesTheDirectionalAlbedo)
         constexpr int sample_count{100'000};
         Rgb sum{};
         for (int i{0}; i < sample_count; ++i) {
-            if (const auto sample{lobe.sample(tilted_wo, nextPoint(random))}) {
+            if (const auto sample{lobe.sample(tilted_wo, 0.5, nextPoint(random))}) {
                 sum += sample->weight;
             }
         }
@@ -153,7 +153,7 @@ TEST(ConductorLobeTest, roughPdfIntegratesToTheFractionOfSamplesKept)
     int kept{0};
 
     for (int i{0}; i < sample_count; ++i) {
-        kept += lobe.sample(tilted_wo, nextPoint(random)).has_value() ? 1 : 0;
+        kept += lobe.sample(tilted_wo, 0.5, nextPoint(random)).has_value() ? 1 : 0;
     }
 
     EXPECT_LT(pdf_integral, 1.0);
@@ -162,19 +162,19 @@ TEST(ConductorLobeTest, roughPdfIntegratesToTheFractionOfSamplesKept)
 
 TEST(ConductorLobeTest, roughSampleReturnsNothingFromBelow)
 {
-    EXPECT_FALSE(roughGold(0.4).sample({0.0, 0.6, -0.8}, {0.3, 0.6}).has_value());
+    EXPECT_FALSE(roughGold(0.4).sample({0.0, 0.6, -0.8}, 0.5, {0.3, 0.6}).has_value());
 }
 
 TEST(ConductorLobeTest, roughSampleReturnsNothingAtGrazing)
 {
-    EXPECT_FALSE(roughGold(0.4).sample({1.0, 0.0, 0.0}, {0.3, 0.6}).has_value());
+    EXPECT_FALSE(roughGold(0.4).sample({1.0, 0.0, 0.0}, 0.5, {0.3, 0.6}).has_value());
 }
 
 TEST(ConductorLobeTest, smoothLobeSamplesTheMirrorDirection)
 {
     const ConductorLobe lobe{roughGold(0.0)};
 
-    const ScatterSample sample{requireValue(lobe.sample(tilted_wo, {0.3, 0.6}))};
+    const ScatterSample sample{requireValue(lobe.sample(tilted_wo, 0.5, {0.3, 0.6}))};
 
     expectNear(sample.direction, Vector3r{-tilted_wo.x, -tilted_wo.y, tilted_wo.z});
     EXPECT_TRUE(sample.specular);
@@ -183,7 +183,7 @@ TEST(ConductorLobeTest, smoothLobeSamplesTheMirrorDirection)
 
 TEST(ConductorLobeTest, smoothLobeWeightIsTheFresnelReflectance)
 {
-    const ScatterSample sample{requireValue(roughGold(0.0).sample(tilted_wo, {0.3, 0.6}))};
+    const ScatterSample sample{requireValue(roughGold(0.0).sample(tilted_wo, 0.5, {0.3, 0.6}))};
 
     expectNear(sample.weight, fresnelConductor(tilted_wo.z, gold_eta, gold_k));
 }
@@ -200,14 +200,14 @@ TEST(ConductorLobeTest, smoothLobeEvaluatesAndSamplesNoDensity)
 
 TEST(ConductorLobeTest, tinyAlphaCountsAsSmooth)
 {
-    const ScatterSample sample{requireValue(roughGold(1e-6).sample(tilted_wo, {0.3, 0.6}))};
+    const ScatterSample sample{requireValue(roughGold(1e-6).sample(tilted_wo, 0.5, {0.3, 0.6}))};
 
     EXPECT_TRUE(sample.specular);
 }
 
 TEST(ConductorLobeTest, smoothSampleReturnsNothingFromBelow)
 {
-    EXPECT_FALSE(roughGold(0.0).sample({0.0, 0.6, -0.8}, {0.3, 0.6}).has_value());
+    EXPECT_FALSE(roughGold(0.0).sample({0.0, 0.6, -0.8}, 0.5, {0.3, 0.6}).has_value());
 }
 
 } // namespace

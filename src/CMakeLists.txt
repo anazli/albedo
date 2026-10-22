@@ -18,6 +18,7 @@ target_sources(albedo_core
         albedo/scattering/ggx_distribution.cpp
         albedo/scattering/lambert_lobe.cpp
         albedo/scattering/scattering.cpp
+        albedo/scattering/specular.cpp
         albedo/scene/scene.cpp
     PUBLIC
         FILE_SET HEADERS

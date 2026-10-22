@@ -29,7 +29,8 @@ Rgb ConductorLobe::evaluate(Vector3r wo, Vector3r wi) const noexcept
     return fresnel * (ggx.density(m) * ggx.maskingShadowing(wo, wi) / (4 * wo.z * wi.z));
 }
 
-std::optional<ScatterSample> ConductorLobe::sample(Vector3r wo, Point2r u) const noexcept
+std::optional<ScatterSample> ConductorLobe::sample(Vector3r wo, Real /*u_choice*/,
+                                                   Point2r u) const noexcept
 {
     if (wo.z <= 0) {
         return std::nullopt;

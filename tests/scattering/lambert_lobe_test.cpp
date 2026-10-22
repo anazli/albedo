@@ -68,19 +68,19 @@ TEST(LambertLobeTest, pdfIsZeroForGrazingOutgoing)
 
 TEST(LambertLobeTest, sampleReturnsNothingForGrazingOutgoing)
 {
-    EXPECT_FALSE(lobe.sample(grazing, {0.3, 0.6}).has_value());
+    EXPECT_FALSE(lobe.sample(grazing, 0.5, {0.3, 0.6}).has_value());
 }
 
 TEST(LambertLobeTest, sampleReturnsNothingWhenOutgoingIsBelowSurface)
 {
-    EXPECT_FALSE(lobe.sample(tilted_in, {0.3, 0.6}).has_value());
+    EXPECT_FALSE(lobe.sample(tilted_in, 0.5, {0.3, 0.6}).has_value());
 }
 
 TEST(LambertLobeTest, sampleWeightIsAlbedo)
 {
     // The cosine-weighted pdf cancels f * cos(theta) exactly, so the weight is
     // the albedo itself rather than a ratio that could blow up near grazing.
-    const ScatterSample sample{requireValue(lobe.sample(tilted_out, {0.3, 0.6}))};
+    const ScatterSample sample{requireValue(lobe.sample(tilted_out, 0.5, {0.3, 0.6}))};
 
     expectNear(sample.weight, albedo, exact_tolerance);
 }
@@ -88,7 +88,7 @@ TEST(LambertLobeTest, sampleWeightIsAlbedo)
 TEST(LambertLobeTest, sampleReturnsNothingInTheTangentPlane)
 {
     // This edge midpoint maps to the disk boundary, so the direction's z is exactly 0.
-    EXPECT_FALSE(lobe.sample(up, {0.5, 0.0}).has_value());
+    EXPECT_FALSE(lobe.sample(up, 0.5, {0.5, 0.0}).has_value());
 }
 
 TEST(LambertLobeTest, boundarySamplesAreAboveSurfaceWithPositivePdf)
@@ -98,7 +98,7 @@ TEST(LambertLobeTest, boundarySamplesAreAboveSurfaceWithPositivePdf)
     for (const Point2r u :
          {Point2r{0.0, 0.0}, Point2r{1.0, 1.0}, Point2r{0.0, 1.0}, Point2r{1.0, 0.0},
           Point2r{0.5, 0.0}, Point2r{0.0, 0.5}, Point2r{1.0, 0.5}, Point2r{0.5, 1.0}}) {
-        if (const auto sample{lobe.sample(up, u)}) {
+        if (const auto sample{lobe.sample(up, 0.5, u)}) {
             EXPECT_GT(sample->direction.z, 0.0);
             EXPECT_GT(sample->pdf, 0.0);
             expectNear(sample->weight, albedo, exact_tolerance);
@@ -108,7 +108,7 @@ TEST(LambertLobeTest, boundarySamplesAreAboveSurfaceWithPositivePdf)
 
 TEST(LambertLobeTest, sampleMatchesEvaluateAndPdf)
 {
-    const ScatterSample sample{requireValue(lobe.sample(tilted_out, {0.7, 0.2}))};
+    const ScatterSample sample{requireValue(lobe.sample(tilted_out, 0.5, {0.7, 0.2}))};
 
     EXPECT_NEAR(sample.pdf, lobe.pdf(tilted_out, sample.direction), default_tolerance);
     expectNear(lobe.evaluate(tilted_out, sample.direction) * sample.direction.z / sample.pdf,
@@ -122,7 +122,7 @@ TEST(LambertLobeTest, sampledDirectionsAreUnitAndAboveSurface)
     for (int i{0}; i < 10'000; ++i) {
         const Real ux{random.nextReal()};
         const Point2r u{.x = ux, .y = random.nextReal()};
-        const ScatterSample sample{requireValue(lobe.sample(up, u))};
+        const ScatterSample sample{requireValue(lobe.sample(up, 0.5, u))};
         ASSERT_NEAR(length(sample.direction), 1.0, 1e-9);
         ASSERT_GT(sample.direction.z, 0.0);
     }
@@ -130,8 +130,8 @@ TEST(LambertLobeTest, sampledDirectionsAreUnitAndAboveSurface)
 
 TEST(LambertLobeTest, sampleDoesNotDependOnOutgoingDirection)
 {
-    const ScatterSample from_up{requireValue(lobe.sample(up, {0.4, 0.9}))};
-    const ScatterSample from_tilted{requireValue(lobe.sample(tilted_out, {0.4, 0.9}))};
+    const ScatterSample from_up{requireValue(lobe.sample(up, 0.5, {0.4, 0.9}))};
+    const ScatterSample from_tilted{requireValue(lobe.sample(tilted_out, 0.5, {0.4, 0.9}))};
 
     expectNear(from_up.direction, from_tilted.direction);
 }

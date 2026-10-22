@@ -72,7 +72,8 @@ TEST(MaterialTest, smoothConductorMaterialMirrorsAroundTheHitNormal)
     const Material conductor{
         ConductorMaterial{.eta = {0.2, 0.9, 1.4}, .k = {3.0, 2.4, 1.6}, .roughness = 0.0}};
 
-    const ScatterSample sample{requireValue(scatteringAt(conductor, hit).sample(wo, {0.5, 0.5}))};
+    const ScatterSample sample{
+        requireValue(scatteringAt(conductor, hit).sample(wo, 0.5, {0.5, 0.5}))};
 
     expectNear(sample.direction, Vector3r{wo.x, -wo.y, -wo.z});
 }

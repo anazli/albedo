@@ -19,7 +19,8 @@ Rgb LambertLobe::evaluate(Vector3r wo, Vector3r wi) const noexcept
     return isReflection(wo, wi) ? albedo * inv_pi : Rgb{};
 }
 
-std::optional<ScatterSample> LambertLobe::sample(Vector3r wo, Point2r u) const noexcept
+std::optional<ScatterSample> LambertLobe::sample(Vector3r wo, Real /*u_choice*/,
+                                                 Point2r u) const noexcept
 {
     if (wo.z <= 0) {
         return std::nullopt;

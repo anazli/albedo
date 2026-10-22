@@ -36,8 +36,9 @@ struct ConductorLobe {
 
     /// A reflected direction for the random point `u` in [0, 1]^2, or nothing when
     /// `wo` is not above the surface or the sampled microfacet reflects below it.
-    /// Mirror samples are marked `specular`.
-    [[nodiscard]] std::optional<ScatterSample> sample(Vector3r wo, Point2r u) const noexcept;
+    /// Mirror samples are marked `specular`. `u_choice` is unused: metals only reflect.
+    [[nodiscard]] std::optional<ScatterSample> sample(Vector3r wo, Real u_choice,
+                                                      Point2r u) const noexcept;
 
     /// Density with which `sample` draws `wi` given `wo`; zero for a mirror.
     [[nodiscard]] Real pdf(Vector3r wo, Vector3r wi) const noexcept;

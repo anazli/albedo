@@ -47,7 +47,9 @@ Rgb ScatterOnlyEstimator::radiance(const Ray& ray, const Scene& scene,
         if (scatter_count >= max_scatter_count) {
             return {};
         }
-        const auto sample{scene.scatteringAt(*hit).sample(-path_ray.direction, generator.next2D())};
+        const Real u_choice{generator.next1D()};
+        const auto sample{
+            scene.scatteringAt(*hit).sample(-path_ray.direction, u_choice, generator.next2D())};
         if (!sample) {
             return {};
         }
