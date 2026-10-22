@@ -32,6 +32,7 @@ TEST(RadianceEstimatorTest, typeWithoutGeneratorIsNotAnEstimator)
 {
     static_assert(EstimatorLike<NormalsEstimator>);
     static_assert(EstimatorLike<ScatterOnlyEstimator>);
+    static_assert(EstimatorLike<PathEstimator>);
     static_assert(!EstimatorLike<EstimatorWithoutGenerator>);
 }
 

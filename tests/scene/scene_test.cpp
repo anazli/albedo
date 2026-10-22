@@ -295,5 +295,17 @@ TEST(SceneTest, settingTheSkyAfterOtherLightsReplacesItInPlace)
     expectNear(scene.sky().emittedRadiance({0.0, 1.0, 0.0}), Rgb{0.4, 0.5, 0.6});
 }
 
+template <typename LightType>
+concept CanAddLight = requires(Scene scene, LightType light) { scene.addLight(light); };
+
+TEST(SceneTest, addLightTakesOnlyPointLights)
+{
+    // Area lights and the sky must go through addAreaLight and setSky, which keep
+    // them linked to what rays can hit.
+    static_assert(CanAddLight<PointLight>);
+    static_assert(!CanAddLight<AreaLight>);
+    static_assert(!CanAddLight<SkyLight>);
+}
+
 } // namespace
 } // namespace albedo

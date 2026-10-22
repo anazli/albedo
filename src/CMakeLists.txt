@@ -5,6 +5,7 @@ target_sources(albedo_core
         albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
         albedo/estimator/normals_estimator.cpp
+        albedo/estimator/path_estimator.cpp
         albedo/estimator/scatter_only_estimator.cpp
         albedo/geometry/sphere.cpp
         albedo/image/pixel_buffer.cpp
@@ -42,8 +43,10 @@ target_sources(albedo_core
             albedo/core/real.hpp
             albedo/core/vector3.hpp
             albedo/estimator/normals_estimator.hpp
+            albedo/estimator/path_estimator.hpp
             albedo/estimator/radiance_estimator.hpp
             albedo/estimator/scatter_only_estimator.hpp
+            albedo/estimator/surface_ray.hpp
             albedo/geometry/shape.hpp
             albedo/geometry/shape_hit.hpp
             albedo/geometry/sphere.hpp

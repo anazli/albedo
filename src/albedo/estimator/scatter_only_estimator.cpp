@@ -5,32 +5,11 @@
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
 #include "albedo/core/vector3.hpp"
+#include "albedo/estimator/surface_ray.hpp"
 
 #include <cassert>
-#include <limits>
 
 namespace albedo {
-
-namespace {
-
-constexpr Interval in_front_of_origin{.min = 0, .max = std::numeric_limits<Real>::infinity()};
-
-// A continuing ray starts this far off the surface along the normal, so rounding
-// error in the hit point cannot make it hit the same surface again at t ~ 0. It
-// is far above that error for scenes of roughly unit to thousand-unit scale, and
-// far below any feature size that matters there.
-constexpr Real surface_offset{1e-7};
-
-// The ray leaving `hit` in `direction`, started off the surface on the side the
-// direction leaves: in front for reflection, behind for refraction.
-Ray continuedRay(const HitRecord& hit, Vector3r direction) noexcept
-{
-    const Real side{dot(direction, hit.normal) >= 0 ? Real{1} : Real{-1}};
-    return {.origin = hit.point + asVector(hit.normal) * (side * surface_offset),
-            .direction = direction};
-}
-
-} // namespace
 
 Rgb ScatterOnlyEstimator::radiance(const Ray& ray, const Scene& scene,
                                    SampleGenerator& generator) const
@@ -64,7 +43,7 @@ Rgb ScatterOnlyEstimator::radiance(const Ray& ray, const Scene& scene,
         if (isBlack(throughput)) {
             return result;
         }
-        path_ray = continuedRay(*hit, sample->direction);
+        path_ray = rayLeaving(*hit, sample->direction);
     }
 }
 

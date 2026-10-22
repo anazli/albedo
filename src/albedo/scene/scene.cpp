@@ -16,9 +16,12 @@ void Scene::add(const Shape& shape, const Material& material)
 
 void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& material)
 {
-    // Reserve first so the object cannot fail to be added after its light was:
-    // that would leave a light no ray can hit.
-    objects.reserve(objects.size() + 1);
+    // Make room first so the object cannot fail to be added after its light was:
+    // that would leave a light no ray can hit. Doubling keeps repeated calls
+    // amortized constant, as push_back's own growth would.
+    if (objects.size() == objects.capacity()) {
+        objects.reserve(std::max<std::size_t>(1, 2 * objects.capacity()));
+    }
     const std::size_t light{appendLight(AreaLight{.shape = sphere, .radiance = radiance})};
     objects.push_back({.shape = sphere, .material = material, .light = light});
 }
