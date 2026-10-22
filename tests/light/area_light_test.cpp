@@ -125,7 +125,9 @@ TEST(AreaLightTest, distanceStaysAccurateForAReceiverAtTheSurface)
     for (int i{0}; i < 1000; ++i) {
         const LightSample sample{
             requireValue(light.sampleIncidentLight(just_outside, nextPoint(random)))};
-        ASSERT_GE(sample.distance, gap);
+        // A relative tolerance leaves room for rounding but not for the factor of
+        // about two the cancelling form loses.
+        ASSERT_GE(sample.distance, gap * (1 - 1e-9));
         const Point3r point{just_outside + sample.direction * sample.distance};
         ASSERT_NEAR(length(point - light.shape.center()), 2.0, 1e-9);
     }
