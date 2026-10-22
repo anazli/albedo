@@ -23,7 +23,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 |---|---|---|
 | Surface hit info | `HitRecord` (shape-level: `ShapeHit`) | point, normal, uv, `t`, front-face flag |
 | Local basis | `OrthonormalBasis` | `toLocal`, `toWorld` |
-| Scattering function at a hit | `Scattering` (lobe + basis) | `evaluate(wo, wi)`, `sample(wo, u)`, `pdf(wo, wi)` |
+| Scattering function at a hit | `Scattering` (lobe + basis) | `evaluate(wo, wi)`, `sample(wo, u_choice, u)`, `pdf(wo, wi)` |
 | Scattering model | `Lobe` variant: `LambertLobe`, `ConductorLobe`, `DielectricLobe` | same three functions in local space |
 | Material | `Material` variant | `scatteringAt(const HitRecord&)` |
 | Light | `Light` variant: `PointLight`, `AreaLight`, `SkyLight` | `sampleIncidentLight`, `incidentLightPdf`, `emittedRadiance` |

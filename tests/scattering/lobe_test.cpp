@@ -35,6 +35,7 @@ TEST(LobeTest, typeWithoutPdfIsNotALobe)
 {
     static_assert(LobeLike<LambertLobe>);
     static_assert(LobeLike<ConductorLobe>);
+    static_assert(LobeLike<DielectricLobe>);
     static_assert(!LobeLike<LobeWithoutPdf>);
 }
 
@@ -66,6 +67,26 @@ TEST(LobeTest, forwardsSample)
 
     expectNear(requireValue(sample(lobe, up, 0.5, {0.25, 0.75})).direction,
                requireValue(lambert.sample(up, 0.5, {0.25, 0.75})).direction);
+}
+
+TEST(LobeTest, lambertIgnoresTheChoiceNumber)
+{
+    const ScatterSample low{requireValue(lambert.sample(tilted_out, 0.0, {0.25, 0.75}))};
+    const ScatterSample high{requireValue(lambert.sample(tilted_out, 0.99, {0.25, 0.75}))};
+
+    expectNear(low.direction, high.direction, test_support::exact_tolerance);
+    expectNear(low.weight, high.weight, test_support::exact_tolerance);
+}
+
+TEST(LobeTest, conductorIgnoresTheChoiceNumber)
+{
+    const ConductorLobe conductor{.eta = {0.2, 0.9, 1.4}, .k = {3.0, 2.4, 1.6}, .alpha = 0.4};
+
+    const ScatterSample low{requireValue(conductor.sample(tilted_out, 0.0, {0.25, 0.75}))};
+    const ScatterSample high{requireValue(conductor.sample(tilted_out, 0.99, {0.25, 0.75}))};
+
+    expectNear(low.direction, high.direction, test_support::exact_tolerance);
+    expectNear(low.weight, high.weight, test_support::exact_tolerance);
 }
 
 } // namespace

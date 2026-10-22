@@ -77,6 +77,9 @@ TEST(SpecularTest, refractAboutATiltedNormalFollowsSnellsLaw)
     const Real cos_t{-dot(refracted, n)};
     EXPECT_NEAR(std::sqrt(1 - cos_t * cos_t), std::sqrt(1 - cos_i * cos_i) / eta, 1e-12);
     EXPECT_GT(cos_t, 0.0);
+    EXPECT_NEAR(dot(cross(w, n), refracted), 0.0, default_tolerance);
+    // The tangential parts point opposite ways.
+    EXPECT_LT(dot(w - n * cos_i, refracted + n * cos_t), 0.0);
 }
 
 TEST(SpecularTest, matchedIndicesDoNotBend)

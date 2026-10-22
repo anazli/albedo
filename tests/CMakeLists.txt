@@ -39,6 +39,7 @@ add_executable(albedo_tests
     sampling/sample_generator_test.cpp
     sampling/warps_test.cpp
     scattering/conductor_lobe_test.cpp
+    scattering/dielectric_lobe_test.cpp
     scattering/fresnel_test.cpp
     scattering/ggx_distribution_test.cpp
     scattering/lambert_lobe_test.cpp

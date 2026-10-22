@@ -86,5 +86,18 @@ TEST(ScatteringTest, sampleReturnsNothingFromBelowTheNormal)
     EXPECT_FALSE(scattering.sample(besideNormal(-1), 0.5, {0.3, 0.8}).has_value());
 }
 
+TEST(ScatteringTest, sampleForwardsTheChoiceNumber)
+{
+    // Smooth glass reflects for a low choice and refracts for a high one.
+    const Scattering glass{DielectricLobe{.eta = 1.5, .alpha = 0.0}, normal};
+    const Vector3r wo{besideNormal(1)};
+
+    const ScatterSample reflected{requireValue(glass.sample(wo, 0.0, {0.5, 0.5}))};
+    const ScatterSample refracted{requireValue(glass.sample(wo, 0.99, {0.5, 0.5}))};
+
+    EXPECT_GT(dot(normal, reflected.direction), 0.0);
+    EXPECT_LT(dot(normal, refracted.direction), 0.0);
+}
+
 } // namespace
 } // namespace albedo

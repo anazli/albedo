@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 namespace albedo {
 namespace {
 
@@ -88,6 +90,56 @@ TEST(MaterialTest, conductorRoughnessIsSquaredIntoAlpha)
     const Vector3r along_normal{1.0, 0.0, 0.0};
 
     expectNear(conductor.scatteringAt(hit).evaluate(along_normal, along_normal),
+               lobe.evaluate({0.0, 0.0, 1.0}, {0.0, 0.0, 1.0}));
+}
+
+TEST(MaterialTest, dielectricMaterialIsAMaterial)
+{
+    static_assert(MaterialLike<DielectricMaterial>);
+}
+
+// sin of the angle between `w` and the axis +-x (the hit normal in these tests).
+Real sinToNormal(Vector3r w)
+{
+    return std::sqrt(w.y * w.y + w.z * w.z);
+}
+
+TEST(MaterialTest, dielectricEnteringFromOutsideBendsTowardsTheNormal)
+{
+    const Material glass{DielectricMaterial{.ior = 1.5, .roughness = 0.0}};
+    const Vector3r tilted_wo{normalized(Vector3r{1.0, 0.5, 0.0})};
+
+    const ScatterSample sample{
+        requireValue(scatteringAt(glass, hit).sample(tilted_wo, 0.99, {0.5, 0.5}))};
+
+    EXPECT_LT(sample.direction.x, 0.0);
+    EXPECT_NEAR(sinToNormal(sample.direction), sinToNormal(tilted_wo) / 1.5, 1e-12);
+}
+
+TEST(MaterialTest, dielectricLeavingFromInsideBendsAwayFromTheNormal)
+{
+    // A back-face hit: the ray is inside the glass, so the index ratio inverts.
+    const Material glass{DielectricMaterial{.ior = 1.5, .roughness = 0.0}};
+    HitRecord inside_hit{hit};
+    inside_hit.front_face = false;
+    const Vector3r tilted_wo{normalized(Vector3r{1.0, 0.3, 0.0})};
+
+    const ScatterSample sample{
+        requireValue(scatteringAt(glass, inside_hit).sample(tilted_wo, 0.99, {0.5, 0.5}))};
+
+    EXPECT_LT(sample.direction.x, 0.0);
+    EXPECT_NEAR(sinToNormal(sample.direction), sinToNormal(tilted_wo) * 1.5, 1e-12);
+}
+
+TEST(MaterialTest, dielectricRoughnessIsSquaredIntoAlpha)
+{
+    // Roughness 0.5 gives alpha 0.25; with wo and wi both along the hit normal
+    // only the reflection's F D / 4 remains, and D depends on alpha.
+    const DielectricMaterial glass{.ior = 1.5, .roughness = 0.5};
+    const DielectricLobe lobe{.eta = 1.5, .alpha = 0.25};
+    const Vector3r along_normal{1.0, 0.0, 0.0};
+
+    expectNear(glass.scatteringAt(hit).evaluate(along_normal, along_normal),
                lobe.evaluate({0.0, 0.0, 1.0}, {0.0, 0.0, 1.0}));
 }
 
