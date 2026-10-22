@@ -9,6 +9,8 @@ target_sources(albedo_core
         albedo/geometry/sphere.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
+        albedo/light/area_light.cpp
+        albedo/light/point_light.cpp
         albedo/light/sky_light.cpp
         albedo/render/render_image.cpp
         albedo/render/tile.cpp
@@ -47,6 +49,10 @@ target_sources(albedo_core
             albedo/geometry/sphere.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
+            albedo/light/area_light.hpp
+            albedo/light/light.hpp
+            albedo/light/light_sample.hpp
+            albedo/light/point_light.hpp
             albedo/light/sky_light.hpp
             albedo/material/conductor_material.hpp
             albedo/material/dielectric_material.hpp

@@ -31,6 +31,9 @@ add_executable(albedo_tests
     geometry/sphere_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
+    light/area_light_test.cpp
+    light/light_test.cpp
+    light/point_light_test.cpp
     light/sky_light_test.cpp
     material/material_test.cpp
     render/render_image_test.cpp
