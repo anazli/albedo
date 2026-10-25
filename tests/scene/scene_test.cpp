@@ -399,5 +399,50 @@ TEST(SceneTest, meshTrianglesAreNotLights)
     EXPECT_TRUE(scene.lights().empty());
 }
 
+TEST(SceneTest, objectsAddedAfterAQueryAreFound)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -9.0}, 1.0}, matte);
+    const HitRecord before{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+    const HitRecord after{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_EQ(before.object, 0U);
+    EXPECT_EQ(after.object, 1U);
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 4.5}));
+}
+
+TEST(SceneTest, findsTheNearestObjectAmongMany)
+{
+    // A 10 x 10 x 10 grid of spheres; the ray runs down the line x = 3, y = 4.
+    Scene scene;
+    for (int x{0}; x < 10; ++x) {
+        for (int y{0}; y < 10; ++y) {
+            for (int z{0}; z < 10; ++z) {
+                scene.add(Sphere{Point3r{1.0 * x, 1.0 * y, -1.0 * z - 5.0}, 0.25}, matte);
+            }
+        }
+    }
+    const Ray ray{.origin = {3.0, 4.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(ray, positive_t))};
+
+    EXPECT_EQ(hit.object, (3U * 10U + 4U) * 10U);
+    EXPECT_NEAR(hit.t, 4.75, default_tolerance);
+}
+
+TEST(SceneTest, anAreaLightIsFoundByIntersectionAndShadowRays)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -20.0}, 1.0}, matte);
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, Rgb{1.0, 1.0, 1.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_EQ(hit.object, 1U);
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
+}
+
 } // namespace
 } // namespace albedo

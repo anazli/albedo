@@ -6,16 +6,28 @@
 #include "albedo/geometry/triangle_mesh.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
+#include <span>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
 namespace albedo {
 
+namespace {
+
+// Installing a new hierarchy must not fail once the scene has changed.
+static_assert(std::is_nothrow_move_assignable_v<Bvh>);
+
+} // namespace
+
 void Scene::add(const Shape& shape, const Material& material)
 {
+    const std::array<Bounds3r, 1> added{bounds(shape)};
+    Bvh next{hierarchyWith(added)};
     objects.push_back({.shape = shape, .material = material, .light = std::nullopt});
+    hierarchy = std::move(next);
 }
 
 void Scene::add(const TriangleMesh& mesh, const Material& material)
@@ -26,6 +38,12 @@ void Scene::add(const TriangleMesh& mesh, const Material& material)
                       std::is_nothrow_move_constructible_v<SceneObject>,
                   "Scene::add(const TriangleMesh&) relies on non-throwing appends after reserve");
     const std::vector<Triangle> triangles{mesh.triangles()};
+    std::vector<Bounds3r> added;
+    added.reserve(triangles.size());
+    for (const Triangle& triangle : triangles) {
+        added.push_back(triangle.bounds());
+    }
+    Bvh next{hierarchyWith(added)};
     const std::size_t needed{objects.size() + triangles.size()};
     if (needed > objects.capacity()) {
         objects.reserve(std::max(needed, 2 * objects.capacity()));
@@ -33,6 +51,7 @@ void Scene::add(const TriangleMesh& mesh, const Material& material)
     for (const Triangle& triangle : triangles) {
         objects.push_back({.shape = triangle, .material = material, .light = std::nullopt});
     }
+    hierarchy = std::move(next);
 }
 
 void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& material)
@@ -43,8 +62,11 @@ void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& mat
     if (objects.size() == objects.capacity()) {
         objects.reserve(std::max<std::size_t>(1, 2 * objects.capacity()));
     }
+    const std::array<Bounds3r, 1> added{sphere.bounds()};
+    Bvh next{hierarchyWith(added)};
     const std::size_t light{appendLight(AreaLight{.shape = sphere, .radiance = radiance})};
     objects.push_back({.shape = sphere, .material = material, .light = light});
+    hierarchy = std::move(next);
 }
 
 std::size_t Scene::addLight(const PointLight& light)
@@ -74,18 +96,18 @@ SkyLight Scene::sky() const noexcept
 
 std::optional<HitRecord> Scene::intersect(const Ray& ray, Interval t_range) const
 {
+    // The hierarchy shrinks the range to each hit, so the last hit kept is the nearest.
     std::optional<ShapeHit> nearest;
-    std::size_t nearest_object{};
-    Interval remaining{t_range};
-    for (std::size_t index{0}; index < objects.size(); ++index) {
-        if (const auto hit{albedo::intersect(objects[index].shape, ray, remaining)}) {
+    const auto nearest_object{hierarchy.nearestHit(
+        ray, t_range, [&](std::size_t index, Interval range) -> std::optional<Real> {
+            const auto hit{albedo::intersect(objects[index].shape, ray, range)};
+            if (!hit) {
+                return std::nullopt;
+            }
             nearest = hit;
-            nearest_object = index;
-            // Only hits closer than this one can still matter.
-            remaining.max = hit->t;
-        }
-    }
-    if (!nearest) {
+            return hit->t;
+        })};
+    if (!nearest_object || !nearest) {
         return std::nullopt;
     }
 
@@ -94,7 +116,7 @@ std::optional<HitRecord> Scene::intersect(const Ray& ray, Interval t_range) cons
                      .point = nearest->point,
                      .normal = front_face ? nearest->normal : -nearest->normal,
                      .front_face = front_face,
-                     .object = nearest_object};
+                     .object = *nearest_object};
 }
 
 Scattering Scene::scatteringAt(const HitRecord& hit) const
@@ -122,15 +144,28 @@ std::optional<std::size_t> Scene::lightIndexOf(const HitRecord& hit) const noexc
 bool Scene::occluded(const Ray& ray, Interval t_range) const
 {
     // Any hit will do, so the search stops at the first one.
-    return std::ranges::any_of(objects, [&](const SceneObject& object) {
-        return albedo::intersect(object.shape, ray, t_range).has_value();
-    });
+    return hierarchy.anyHit(ray, t_range,
+                            [&](std::size_t index, Interval range) -> std::optional<Real> {
+                                const auto hit{albedo::intersect(objects[index].shape, ray, range)};
+                                return hit ? std::optional<Real>{hit->t} : std::nullopt;
+                            });
 }
 
 std::size_t Scene::appendLight(const Light& light)
 {
     light_list.push_back(light);
     return light_list.size() - 1;
+}
+
+Bvh Scene::hierarchyWith(std::span<const Bounds3r> added_bounds) const
+{
+    std::vector<Bounds3r> all_bounds;
+    all_bounds.reserve(objects.size() + added_bounds.size());
+    for (const SceneObject& object : objects) {
+        all_bounds.push_back(bounds(object.shape));
+    }
+    all_bounds.insert(all_bounds.end(), added_bounds.begin(), added_bounds.end());
+    return Bvh{all_bounds};
 }
 
 } // namespace albedo

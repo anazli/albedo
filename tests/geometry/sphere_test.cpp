@@ -44,6 +44,15 @@ TEST(SphereTest, rejectsNonFiniteRadius)
     EXPECT_THROW(Sphere(Point3r{}, std::numeric_limits<Real>::quiet_NaN()), std::invalid_argument);
 }
 
+TEST(SphereTest, rejectsNonFiniteCenter)
+{
+    constexpr Real infinity{std::numeric_limits<Real>::infinity()};
+    constexpr Real nan{std::numeric_limits<Real>::quiet_NaN()};
+
+    EXPECT_THROW(Sphere(Point3r{infinity, 0.0, 0.0}, 1.0), std::invalid_argument);
+    EXPECT_THROW(Sphere(Point3r{0.0, nan, 0.0}, 1.0), std::invalid_argument);
+}
+
 TEST(SphereTest, rejectsRadiusWhoseSquareOverflowsOrUnderflows)
 {
     // The intersection math squares the radius; outside this range every ray would miss.

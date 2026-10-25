@@ -14,8 +14,9 @@ namespace albedo {
 /// A sphere given by its center and radius.
 class Sphere {
 public:
-    /// Throws `std::invalid_argument` unless `radius` is positive and its square is a
-    /// normal floating-point number (roughly 1.5e-154 to 1.3e154 for double).
+    /// Throws `std::invalid_argument` unless every coordinate of `center` is finite,
+    /// and `radius` is positive and its square is a normal floating-point number
+    /// (roughly 1.5e-154 to 1.3e154 for double).
     Sphere(Point3r center, Real radius);
 
     /// Center of the sphere.

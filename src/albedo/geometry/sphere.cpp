@@ -24,6 +24,17 @@ Real validatedRadius(Real radius)
     return radius;
 }
 
+// A non-finite center would give a non-finite bounding box, which the scene's
+// hierarchy rejects.
+Point3r validatedCenter(Point3r center)
+{
+    if (!isFinite(center)) {
+        throw std::invalid_argument{
+            std::format("sphere center ({}, {}, {}) must be finite", center.x, center.y, center.z)};
+    }
+    return center;
+}
+
 struct Roots {
     Real near{};
     Real far{};
@@ -66,7 +77,7 @@ std::optional<Roots> solveQuadratic(const Quadratic& quadratic) noexcept
 } // namespace
 
 Sphere::Sphere(Point3r center, Real radius)
-    : sphere_center{center}, sphere_radius{validatedRadius(radius)}
+    : sphere_center{validatedCenter(center)}, sphere_radius{validatedRadius(radius)}
 {
 }
 

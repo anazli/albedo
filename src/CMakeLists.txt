@@ -1,6 +1,7 @@
 add_library(albedo_core STATIC)
 target_sources(albedo_core
     PRIVATE
+        albedo/accel/bvh.cpp
         albedo/camera/perspective_camera.cpp
         albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
@@ -30,6 +31,7 @@ target_sources(albedo_core
         FILE_SET HEADERS
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
         FILES
+            albedo/accel/bvh.hpp
             albedo/camera/perspective_camera.hpp
             albedo/camera/pixel_sample.hpp
             albedo/color/rgb.hpp
