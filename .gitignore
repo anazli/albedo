@@ -6,6 +6,8 @@
 *.lo
 *.o
 *.obj
+# ...but Wavefront OBJ meshes share the extension; the sample meshes are tracked.
+!assets/*.obj
 
 # Precompiled Headers
 *.gch
