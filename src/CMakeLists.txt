@@ -8,6 +8,7 @@ target_sources(albedo_core
         albedo/estimator/path_estimator.cpp
         albedo/estimator/scatter_only_estimator.cpp
         albedo/geometry/sphere.cpp
+        albedo/geometry/triangle.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
         albedo/light/area_light.cpp
@@ -50,6 +51,7 @@ target_sources(albedo_core
             albedo/geometry/shape.hpp
             albedo/geometry/shape_hit.hpp
             albedo/geometry/sphere.hpp
+            albedo/geometry/triangle.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
             albedo/light/area_light.hpp
@@ -80,6 +82,11 @@ target_sources(albedo_core
             albedo/scene/scene_object.hpp
 )
 target_compile_features(albedo_core PUBLIC cxx_std_20)
+# The watertight triangle test needs each product in its edge functions rounded
+# separately; fusing them into an FMA breaks the exact antisymmetry between
+# triangles sharing an edge. MSVC's default /fp:precise does not contract.
+set_source_files_properties(albedo/geometry/triangle.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-ffp-contract=off>")
 find_package(Threads REQUIRED)
 target_link_libraries(albedo_core PRIVATE Threads::Threads)
 albedo_set_warnings(albedo_core)
