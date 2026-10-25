@@ -1,6 +1,7 @@
 #include "albedo/image/ppm.hpp"
 
 #include "albedo/image/pixel_buffer.hpp"
+#include "support/temporary_file.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,10 +12,12 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <system_error>
 
 namespace albedo {
 namespace {
+
+using test_support::TemporaryFile;
+using test_support::testOutputDirectory;
 
 // A 2x1 image: a fully red pixel next to a mid-gray one.
 PixelBuffer twoPixelImage()
@@ -30,42 +33,6 @@ const std::string two_pixel_ppm{"P6\n2 1\n255\n"
                                 "\xFF\x00\x00"
                                 "\xBC\xBC\xBC",
                                 11 + 6};
-
-// Directory for files the tests write. Tests run with the build tree as working
-// directory, so separate build trees never share it, unlike the system temp
-// directory. Parallel test processes of one tree do share it, so every test must
-// use its own file name.
-std::filesystem::path testOutputDirectory()
-{
-    const std::filesystem::path directory{std::filesystem::current_path() / "test_output"};
-    std::filesystem::create_directories(directory);
-    return directory;
-}
-
-// A file path in the test output directory, removed when the test ends.
-class TemporaryFile {
-public:
-    explicit TemporaryFile(std::string_view name) : file_path{testOutputDirectory() / name}
-    {
-        std::filesystem::remove(file_path);
-    }
-
-    TemporaryFile(const TemporaryFile&) = delete;
-    TemporaryFile(TemporaryFile&&) = delete;
-    TemporaryFile& operator=(const TemporaryFile&) = delete;
-    TemporaryFile& operator=(TemporaryFile&&) = delete;
-
-    ~TemporaryFile()
-    {
-        std::error_code ignored;
-        std::filesystem::remove(file_path, ignored);
-    }
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept { return file_path; }
-
-private:
-    std::filesystem::path file_path;
-};
 
 std::string readBinary(const std::filesystem::path& path)
 {

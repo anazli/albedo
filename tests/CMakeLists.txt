@@ -31,6 +31,7 @@ add_executable(albedo_tests
     estimator/scatter_only_estimator_test.cpp
     estimator/surface_ray_test.cpp
     geometry/shape_test.cpp
+    geometry/obj_test.cpp
     geometry/sphere_test.cpp
     geometry/triangle_mesh_test.cpp
     geometry/triangle_test.cpp

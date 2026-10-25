@@ -8,6 +8,7 @@ target_sources(albedo_core
         albedo/estimator/normals_estimator.cpp
         albedo/estimator/path_estimator.cpp
         albedo/estimator/scatter_only_estimator.cpp
+        albedo/geometry/obj.cpp
         albedo/geometry/sphere.cpp
         albedo/geometry/triangle.cpp
         albedo/geometry/triangle_mesh.cpp
@@ -51,6 +52,7 @@ target_sources(albedo_core
             albedo/estimator/radiance_estimator.hpp
             albedo/estimator/scatter_only_estimator.hpp
             albedo/estimator/surface_ray.hpp
+            albedo/geometry/obj.hpp
             albedo/geometry/shape.hpp
             albedo/geometry/shape_hit.hpp
             albedo/geometry/sphere.hpp
