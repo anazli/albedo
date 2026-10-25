@@ -9,6 +9,7 @@ target_sources(albedo_core
         albedo/estimator/scatter_only_estimator.cpp
         albedo/geometry/sphere.cpp
         albedo/geometry/triangle.cpp
+        albedo/geometry/triangle_mesh.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
         albedo/light/area_light.cpp
@@ -52,6 +53,7 @@ target_sources(albedo_core
             albedo/geometry/shape_hit.hpp
             albedo/geometry/sphere.hpp
             albedo/geometry/triangle.hpp
+            albedo/geometry/triangle_mesh.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
             albedo/light/area_light.hpp

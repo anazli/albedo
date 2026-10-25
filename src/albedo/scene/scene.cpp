@@ -2,16 +2,37 @@
 
 #include "albedo/core/normal3.hpp"
 #include "albedo/core/vector3.hpp"
+#include "albedo/geometry/triangle.hpp"
+#include "albedo/geometry/triangle_mesh.hpp"
 
 #include <algorithm>
 #include <cassert>
+#include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace albedo {
 
 void Scene::add(const Shape& shape, const Material& material)
 {
     objects.push_back({.shape = shape, .material = material, .light = std::nullopt});
+}
+
+void Scene::add(const TriangleMesh& mesh, const Material& material)
+{
+    // Reserving up front, with appends that cannot throw, means the loop cannot
+    // fail part-way. Doubling keeps repeated calls amortized, as in addAreaLight.
+    static_assert(std::is_nothrow_copy_constructible_v<SceneObject> &&
+                      std::is_nothrow_move_constructible_v<SceneObject>,
+                  "Scene::add(const TriangleMesh&) relies on non-throwing appends after reserve");
+    const std::vector<Triangle> triangles{mesh.triangles()};
+    const std::size_t needed{objects.size() + triangles.size()};
+    if (needed > objects.capacity()) {
+        objects.reserve(std::max(needed, 2 * objects.capacity()));
+    }
+    for (const Triangle& triangle : triangles) {
+        objects.push_back({.shape = triangle, .material = material, .light = std::nullopt});
+    }
 }
 
 void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& material)

@@ -45,4 +45,8 @@ private:
     Normal3r front_normal;
 };
 
+/// True when `Triangle{p0, p1, p2}` would not throw: every coordinate is finite and
+/// the triangle has a computable area. Lets callers skip degenerate input cheaply.
+[[nodiscard]] bool formsTriangle(Point3r p0, Point3r p1, Point3r p2) noexcept;
+
 } // namespace albedo

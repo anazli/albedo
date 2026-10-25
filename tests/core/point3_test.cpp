@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
+
 namespace albedo {
 namespace {
 
@@ -116,6 +118,17 @@ TEST(Point3Test, distanceToSelfIsZero)
     constexpr Point3r p{1.0, 2.0, 3.0};
 
     EXPECT_NEAR(distance(p, p), 0.0, default_tolerance);
+}
+
+TEST(Point3Test, isFiniteRejectsInfiniteAndNanCoordinates)
+{
+    constexpr Real infinity{std::numeric_limits<Real>::infinity()};
+    constexpr Real nan{std::numeric_limits<Real>::quiet_NaN()};
+
+    EXPECT_TRUE(isFinite(Point3r{1.0, -2.0, 3.0}));
+    EXPECT_FALSE(isFinite(Point3r{infinity, 0.0, 0.0}));
+    EXPECT_FALSE(isFinite(Point3r{0.0, -infinity, 0.0}));
+    EXPECT_FALSE(isFinite(Point3r{0.0, 0.0, nan}));
 }
 
 } // namespace

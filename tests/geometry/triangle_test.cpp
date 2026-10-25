@@ -84,6 +84,28 @@ TEST(TriangleTest, rejectsTrianglesWhoseAreaCannotBeRepresented)
         std::invalid_argument);
 }
 
+TEST(TriangleTest, formsTriangleAcceptsWhatTheConstructorAccepts)
+{
+    EXPECT_TRUE(formsTriangle(Point3r{-1.0, -1.0, -5.0}, Point3r{1.0, -1.0, -5.0},
+                              Point3r{-1.0, 1.0, -5.0}));
+}
+
+TEST(TriangleTest, formsTriangleRejectsWhatTheConstructorRejects)
+{
+    constexpr Real nan{std::numeric_limits<Real>::quiet_NaN()};
+
+    EXPECT_FALSE(
+        formsTriangle(Point3r{0.0, 0.0, 0.0}, Point3r{1.0, 1.0, 1.0}, Point3r{2.0, 2.0, 2.0}));
+    EXPECT_FALSE(
+        formsTriangle(Point3r{0.0, 0.0, 0.0}, Point3r{1.0, nan, 0.0}, Point3r{0.0, 1.0, 0.0}));
+    EXPECT_FALSE(
+        formsTriangle(Point3r{0.0, 0.0, 0.0}, Point3r{1e100, 0.0, 0.0}, Point3r{0.0, 1e100, 0.0}));
+    EXPECT_FALSE(formsTriangle(Point3r{0.0, 0.0, 0.0}, Point3r{1e-100, 0.0, 0.0},
+                               Point3r{0.0, 1e-100, 0.0}));
+    EXPECT_FALSE(formsTriangle(Point3r{0.0, 0.0, 0.0}, Point3r{1.0, 0.0, 0.0},
+                               Point3r{0.0, std::numeric_limits<Real>::infinity(), 0.0}));
+}
+
 TEST(TriangleTest, rayThroughInteriorHits)
 {
     const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {-0.1, -0.2, -1.0}};

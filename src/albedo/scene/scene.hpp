@@ -19,6 +19,8 @@
 
 namespace albedo {
 
+class TriangleMesh;
+
 /// The objects a ray can hit, and the lights: point lights, emitting objects and
 /// the sky around everything. Intersection tests every object; an acceleration
 /// structure replaces the linear search in a later step.
@@ -26,6 +28,11 @@ class Scene {
 public:
     /// Adds an object with the given geometry and surface material.
     void add(const Shape& shape, const Material& material);
+
+    /// Adds every triangle of `mesh` (see `TriangleMesh::triangles`) as an object
+    /// made of `material`, in face order. Adds nothing if it throws, which it does
+    /// only for lack of memory.
+    void add(const TriangleMesh& mesh, const Material& material);
 
     /// Number of objects in the scene.
     [[nodiscard]] std::size_t shapeCount() const noexcept { return objects.size(); }

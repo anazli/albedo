@@ -19,25 +19,18 @@ namespace {
 // only on that edge's two vertices, so triangles sharing an edge compute exactly
 // negated values there and no ray can slip between them.
 
-bool isFinite(Point3r p) noexcept
-{
-    return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
-}
-
 // Throws unless the triangle is non-degenerate and its normal is computable.
 Normal3r frontNormal(Point3r p0, Point3r p1, Point3r p2)
 {
     if (!isFinite(p0) || !isFinite(p1) || !isFinite(p2)) {
         throw std::invalid_argument{"triangle vertices must have finite coordinates"};
     }
-    const Vector3r edge_normal{cross(p1 - p0, p2 - p0)};
-    // Also catches edges long enough to overflow the cross product to infinity.
-    if (!std::isnormal(lengthSquared(edge_normal))) {
+    if (!formsTriangle(p0, p1, p2)) {
         throw std::invalid_argument{
             std::format("triangle ({}, {}, {}), ({}, {}, {}), ({}, {}, {}) has no computable area",
                         p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z)};
     }
-    return asNormal(normalized(edge_normal));
+    return asNormal(normalized(cross(p1 - p0, p2 - p0)));
 }
 
 Real component(Vector3r v, int axis) noexcept
@@ -161,6 +154,15 @@ std::optional<ShapeHit> Triangle::intersect(const Ray& ray, Interval t_range) co
 Bounds3r Triangle::bounds() const noexcept
 {
     return merged(merged(merged(Bounds3r{}, corners[0]), corners[1]), corners[2]);
+}
+
+bool formsTriangle(Point3r p0, Point3r p1, Point3r p2) noexcept
+{
+    if (!isFinite(p0) || !isFinite(p1) || !isFinite(p2)) {
+        return false;
+    }
+    // Also rejects edges long enough to overflow the cross product to infinity.
+    return std::isnormal(lengthSquared(cross(p1 - p0, p2 - p0)));
 }
 
 } // namespace albedo
