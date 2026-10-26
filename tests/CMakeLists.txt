@@ -11,6 +11,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(albedo_tests
+    accel/bvh_test.cpp
     camera/perspective_camera_test.cpp
     color/rgb_test.cpp
     color/srgb_test.cpp
@@ -30,7 +31,10 @@ add_executable(albedo_tests
     estimator/scatter_only_estimator_test.cpp
     estimator/surface_ray_test.cpp
     geometry/shape_test.cpp
+    geometry/obj_test.cpp
     geometry/sphere_test.cpp
+    geometry/triangle_mesh_test.cpp
+    geometry/triangle_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
     light/area_light_test.cpp
@@ -65,7 +69,7 @@ gtest_discover_tests(albedo_tests WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 # Smoke tests of the command-line app.
 add_test(NAME app.rejectsMissingOutputPath COMMAND albedo)
 set_tests_properties(app.rejectsMissingOutputPath PROPERTIES WILL_FAIL TRUE)
-add_test(NAME app.rejectsTooManyArguments COMMAND albedo a.ppm 64 extra)
+add_test(NAME app.rejectsTooManyArguments COMMAND albedo a.ppm 64 mesh.obj extra)
 set_tests_properties(app.rejectsTooManyArguments PROPERTIES WILL_FAIL TRUE)
 # WILL_FAIL accepts any failure (even a crash), so also check the usage text is printed.
 add_test(NAME app.printsUsageOnWrongArguments COMMAND albedo)
@@ -104,3 +108,52 @@ set_tests_properties(app.writesImage PROPERTIES
     FIXTURES_REQUIRED smoke_cleared
     FIXTURES_SETUP smoke_written)
 set_tests_properties(app.smokeImageExists PROPERTIES FIXTURES_REQUIRED smoke_written)
+
+# Rendering a mesh: the committed sample renders, and unusable meshes are
+# reported. Each failure is checked twice, as for the widths above.
+set(mesh_image ${CMAKE_CURRENT_BINARY_DIR}/mesh.ppm)
+add_test(NAME app.removeOldMeshImage COMMAND ${CMAKE_COMMAND} -E rm -f ${mesh_image})
+add_test(NAME app.rendersAMesh
+    COMMAND albedo ${mesh_image} 16 ${PROJECT_SOURCE_DIR}/assets/trefoil_knot.obj)
+add_test(NAME app.meshImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${mesh_image})
+set_tests_properties(app.removeOldMeshImage PROPERTIES FIXTURES_SETUP mesh_cleared)
+set_tests_properties(app.rendersAMesh PROPERTIES
+    FIXTURES_REQUIRED mesh_cleared
+    FIXTURES_SETUP mesh_written)
+set_tests_properties(app.meshImageExists PROPERTIES FIXTURES_REQUIRED mesh_written)
+set(missing_mesh ${CMAKE_CURRENT_BINARY_DIR}/no_such_mesh.obj)
+set(malformed_mesh ${CMAKE_CURRENT_BINARY_DIR}/malformed_mesh.obj)
+set(empty_mesh ${CMAKE_CURRENT_BINARY_DIR}/empty_mesh.obj)
+set(degenerate_mesh ${CMAKE_CURRENT_BINARY_DIR}/degenerate_mesh.obj)
+set(huge_mesh ${CMAKE_CURRENT_BINARY_DIR}/huge_mesh.obj)
+set(sliver_mesh ${CMAKE_CURRENT_BINARY_DIR}/sliver_mesh.obj)
+file(WRITE ${malformed_mesh} "v 0 0 0\nf 1 2 3\n")
+file(WRITE ${empty_mesh} "v 0 0 0\nv 1 0 0\nv 0 1 0\n")
+# One face, but its corners are collinear: nothing to show.
+file(WRITE ${degenerate_mesh} "v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3\n")
+# Two triangles whose combined extent overflows a double.
+file(WRITE ${huge_mesh} "v -1e308 0 0\nv -1e308 1 0\nv -1e308 0 1\nf 1 2 3\n"
+                        "v 1e308 0 0\nv 1e308 1 0\nv 1e308 0 1\nf 4 5 6\n")
+# A sliver with area, which scaling to fit squashes flat.
+file(WRITE ${sliver_mesh} "v 0 0 0\nv 1e200 0 0\nv 0 1e-100 0\nf 1 2 3\n")
+foreach(case IN ITEMS missing malformed empty degenerate huge sliver)
+    add_test(NAME app.failsOnMesh_${case} COMMAND albedo bad.ppm 16 ${${case}_mesh})
+    set_tests_properties(app.failsOnMesh_${case} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+add_test(NAME app.reportsMissingMesh COMMAND albedo bad.ppm 16 ${missing_mesh})
+set_tests_properties(app.reportsMissingMesh PROPERTIES PASS_REGULAR_EXPRESSION "cannot open OBJ file")
+add_test(NAME app.reportsMalformedMesh COMMAND albedo bad.ppm 16 ${malformed_mesh})
+set_tests_properties(app.reportsMalformedMesh PROPERTIES
+    PASS_REGULAR_EXPRESSION "malformed_mesh.obj: OBJ line 2")
+add_test(NAME app.reportsMeshWithoutTriangles COMMAND albedo bad.ppm 16 ${empty_mesh})
+set_tests_properties(app.reportsMeshWithoutTriangles PROPERTIES
+    PASS_REGULAR_EXPRESSION "empty_mesh.obj: the mesh has no triangles")
+add_test(NAME app.reportsMeshWithOnlyDegenerateFaces COMMAND albedo bad.ppm 16 ${degenerate_mesh})
+set_tests_properties(app.reportsMeshWithOnlyDegenerateFaces PROPERTIES
+    PASS_REGULAR_EXPRESSION "degenerate_mesh.obj: the mesh has no triangles")
+add_test(NAME app.reportsMeshTooLargeToScale COMMAND albedo bad.ppm 16 ${huge_mesh})
+set_tests_properties(app.reportsMeshTooLargeToScale PROPERTIES
+    PASS_REGULAR_EXPRESSION "huge_mesh.obj: the mesh is too large to scale into the room")
+add_test(NAME app.reportsMeshFlattenedByScaling COMMAND albedo bad.ppm 16 ${sliver_mesh})
+set_tests_properties(app.reportsMeshFlattenedByScaling PROPERTIES
+    PASS_REGULAR_EXPRESSION "sliver_mesh.obj: no triangle of the mesh keeps an area once scaled")

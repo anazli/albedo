@@ -5,6 +5,7 @@
 #include "albedo/core/ray.hpp"
 #include "albedo/geometry/shape_hit.hpp"
 #include "albedo/geometry/sphere.hpp"
+#include "albedo/geometry/triangle.hpp"
 
 #include <concepts>
 #include <optional>
@@ -25,7 +26,7 @@ using ShapeVariant = std::variant<Shapes...>;
 
 /// Any shape the renderer supports. A closed set: adding a shape means adding
 /// an alternative here, and `ShapeVariant` rejects one missing required members.
-using Shape = ShapeVariant<Sphere>;
+using Shape = ShapeVariant<Sphere, Triangle>;
 
 /// The nearest hit of `ray` on `shape` with `t` strictly inside `t_range`, if any.
 /// Not `noexcept`: `std::visit` throws `std::bad_variant_access` on a valueless variant.

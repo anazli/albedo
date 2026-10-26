@@ -1,6 +1,8 @@
 #pragma once
 
+#include "albedo/accel/bvh.hpp"
 #include "albedo/color/rgb.hpp"
+#include "albedo/core/bounds3.hpp"
 #include "albedo/core/interval.hpp"
 #include "albedo/core/ray.hpp"
 #include "albedo/geometry/shape.hpp"
@@ -19,13 +21,22 @@
 
 namespace albedo {
 
+class TriangleMesh;
+
 /// The objects a ray can hit, and the lights: point lights, emitting objects and
-/// the sky around everything. Intersection tests every object; an acceleration
-/// structure replaces the linear search in a later step.
+/// the sky around everything. Intersection searches a bounding volume hierarchy
+/// that every call adding objects rebuilds in full, so a scene is always ready to
+/// render; a large scene is best built with few calls (one per mesh, not one per
+/// triangle). Every function that adds something adds nothing if it throws.
 class Scene {
 public:
     /// Adds an object with the given geometry and surface material.
+    /// Throws only for lack of memory, or what `bounds(const Shape&)` throws.
     void add(const Shape& shape, const Material& material);
+
+    /// Adds every triangle of `mesh` (see `TriangleMesh::triangles`) as an object
+    /// made of `material`, in face order. Throws only for lack of memory.
+    void add(const TriangleMesh& mesh, const Material& material);
 
     /// Number of objects in the scene.
     [[nodiscard]] std::size_t shapeCount() const noexcept { return objects.size(); }
@@ -75,9 +86,14 @@ private:
     // Appends to the light list and returns the new light's index.
     std::size_t appendLight(const Light& light);
 
+    // A hierarchy over the current objects followed by objects with `added_bounds`,
+    // built without changing the scene.
+    [[nodiscard]] Bvh hierarchyWith(std::span<const Bounds3r> added_bounds) const;
+
     std::vector<SceneObject> objects;
     std::vector<Light> light_list;
     std::optional<std::size_t> sky_index;
+    Bvh hierarchy;
 };
 
 } // namespace albedo

@@ -1,5 +1,6 @@
 #include "albedo/scene/scene.hpp"
 
+#include "albedo/geometry/triangle_mesh.hpp"
 #include "albedo/material/material.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
@@ -305,6 +306,142 @@ TEST(SceneTest, addLightTakesOnlyPointLights)
     static_assert(CanAddLight<PointLight>);
     static_assert(!CanAddLight<AreaLight>);
     static_assert(!CanAddLight<SkyLight>);
+}
+
+// Two triangles forming the square [-1, 1]^2 in the plane z = -5, facing the origin,
+// plus a face without area.
+TriangleMesh squareMesh()
+{
+    return TriangleMesh{
+        {{-1.0, -1.0, -5.0}, {1.0, -1.0, -5.0}, {1.0, 1.0, -5.0}, {-1.0, 1.0, -5.0}},
+        {{0, 1, 2}, {0, 2, 3}, {0, 0, 1}}};
+}
+
+TEST(SceneTest, addingAMeshAddsOneObjectPerTriangleWithArea)
+{
+    Scene scene;
+
+    scene.add(squareMesh(), matte);
+
+    EXPECT_EQ(scene.shapeCount(), 2U);
+}
+
+TEST(SceneTest, addingAnEmptyOrDegenerateMeshAddsNothing)
+{
+    Scene scene;
+    const TriangleMesh degenerate{{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}}, {{0, 0, 1}, {1, 1, 1}}};
+
+    scene.add(TriangleMesh{{}, {}}, matte);
+    scene.add(degenerate, matte);
+
+    EXPECT_EQ(scene.shapeCount(), 0U);
+    EXPECT_TRUE(scene.lights().empty());
+}
+
+TEST(SceneTest, addingManyMeshesKeepsEveryTriangle)
+{
+    // Guards against storage that grows on every add rather than only when full.
+    const TriangleMesh one_triangle{{{0.0, 0.0, -5.0}, {1.0, 0.0, -5.0}, {0.0, 1.0, -5.0}},
+                                    {{0, 1, 2}}};
+    constexpr std::size_t mesh_count{100};
+    Scene scene;
+
+    for (std::size_t index{0}; index < mesh_count; ++index) {
+        scene.add(one_triangle, matte);
+    }
+
+    EXPECT_EQ(scene.shapeCount(), mesh_count);
+}
+
+TEST(SceneTest, raysHitAMeshTriangleAndRecordWhichOne)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -20.0}, 1.0}, matte);
+    scene.add(squareMesh(), matte);
+    // Below the diagonal through (-1, -1) and (1, 1): the mesh's first triangle.
+    const Ray ray{.origin = {0.5, -0.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(ray, positive_t))};
+
+    EXPECT_NEAR(hit.t, 5.0, default_tolerance);
+    EXPECT_TRUE(hit.front_face);
+    EXPECT_EQ(hit.object, 1U);
+}
+
+TEST(SceneTest, meshTrianglesUseTheMeshMaterial)
+{
+    constexpr Rgb mesh_albedo{0.2, 0.7, 0.4};
+    Scene scene;
+    scene.add(squareMesh(), Material{DiffuseMaterial{.albedo = mesh_albedo}});
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+    const Vector3r back_towards_origin{0.0, 0.0, 1.0};
+
+    const Scattering scattering{scene.scatteringAt(hit)};
+
+    expectNear(scattering.evaluate(back_towards_origin, back_towards_origin), mesh_albedo * inv_pi);
+}
+
+TEST(SceneTest, meshesBlockShadowRays)
+{
+    Scene scene;
+    scene.add(squareMesh(), matte);
+
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
+}
+
+TEST(SceneTest, meshTrianglesAreNotLights)
+{
+    Scene scene;
+    scene.add(squareMesh(), matte);
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_FALSE(scene.lightIndexOf(hit).has_value());
+    EXPECT_TRUE(scene.lights().empty());
+}
+
+TEST(SceneTest, objectsAddedAfterAQueryAreFound)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -9.0}, 1.0}, matte);
+    const HitRecord before{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+    const HitRecord after{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_EQ(before.object, 0U);
+    EXPECT_EQ(after.object, 1U);
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 4.5}));
+}
+
+TEST(SceneTest, findsTheNearestObjectAmongMany)
+{
+    // A 10 x 10 x 10 grid of spheres; the ray runs down the line x = 3, y = 4.
+    Scene scene;
+    for (int x{0}; x < 10; ++x) {
+        for (int y{0}; y < 10; ++y) {
+            for (int z{0}; z < 10; ++z) {
+                scene.add(Sphere{Point3r{1.0 * x, 1.0 * y, -1.0 * z - 5.0}, 0.25}, matte);
+            }
+        }
+    }
+    const Ray ray{.origin = {3.0, 4.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(ray, positive_t))};
+
+    EXPECT_EQ(hit.object, (3U * 10U + 4U) * 10U);
+    EXPECT_NEAR(hit.t, 4.75, default_tolerance);
+}
+
+TEST(SceneTest, anAreaLightIsFoundByIntersectionAndShadowRays)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -20.0}, 1.0}, matte);
+    scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, Rgb{1.0, 1.0, 1.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    EXPECT_EQ(hit.object, 1U);
+    EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
 }
 
 } // namespace

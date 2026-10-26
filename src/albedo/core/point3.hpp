@@ -5,6 +5,7 @@
 #include "albedo/core/vector3.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 
 namespace albedo {
@@ -85,6 +86,13 @@ template <Arithmetic T>
 [[nodiscard]] constexpr T distanceSquared(Point3<T> a, Point3<T> b) noexcept
 {
     return lengthSquared(a - b);
+}
+
+/// True when every coordinate is finite: neither infinite nor NaN.
+template <std::floating_point T>
+[[nodiscard]] bool isFinite(Point3<T> p) noexcept
+{
+    return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
 }
 
 /// Distance between two points.

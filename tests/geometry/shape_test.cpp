@@ -29,6 +29,7 @@ concept CanFormShapeVariant = requires { typename ShapeVariant<Shapes...>; };
 TEST(ShapeTest, typeWithoutBoundsIsNotAShape)
 {
     static_assert(ShapeLike<Sphere>);
+    static_assert(ShapeLike<Triangle>);
     static_assert(!ShapeLike<ShapeWithoutBounds>);
 }
 
@@ -48,6 +49,17 @@ TEST(ShapeTest, intersectDispatchesToTheHeldShape)
     EXPECT_NEAR(hit.t, 2.0, default_tolerance);
 }
 
+TEST(ShapeTest, intersectDispatchesToAHeldTriangle)
+{
+    const Shape shape{
+        Triangle{Point3r{-1.0, -1.0, -3.0}, Point3r{1.0, -1.0, -3.0}, Point3r{0.0, 1.0, -3.0}}};
+    const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const ShapeHit hit{requireValue(intersect(shape, ray, Interval{.min = 0.0, .max = 10.0}))};
+
+    EXPECT_NEAR(hit.t, 3.0, default_tolerance);
+}
+
 TEST(ShapeTest, boundsDispatchesToTheHeldShape)
 {
     const Shape shape{Sphere{Point3r{1.0, 2.0, 3.0}, 0.5}};
@@ -56,6 +68,17 @@ TEST(ShapeTest, boundsDispatchesToTheHeldShape)
 
     expectNear(box.min, Point3r{0.5, 1.5, 2.5});
     expectNear(box.max, Point3r{1.5, 2.5, 3.5});
+}
+
+TEST(ShapeTest, boundsDispatchesToAHeldTriangle)
+{
+    const Shape shape{
+        Triangle{Point3r{-1.0, 0.0, 2.0}, Point3r{1.0, -2.0, 3.0}, Point3r{0.0, 1.0, 4.0}}};
+
+    const Bounds3r box{bounds(shape)};
+
+    expectNear(box.min, Point3r{-1.0, -2.0, 2.0});
+    expectNear(box.max, Point3r{1.0, 1.0, 4.0});
 }
 
 } // namespace

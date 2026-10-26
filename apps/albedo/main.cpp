@@ -1,9 +1,14 @@
 #include "albedo/camera/perspective_camera.hpp"
 #include "albedo/color/rgb.hpp"
+#include "albedo/core/bounds3.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
+#include "albedo/core/vector3.hpp"
 #include "albedo/estimator/path_estimator.hpp"
+#include "albedo/geometry/obj.hpp"
 #include "albedo/geometry/sphere.hpp"
+#include "albedo/geometry/triangle.hpp"
+#include "albedo/geometry/triangle_mesh.hpp"
 #include "albedo/image/pixel_buffer.hpp"
 #include "albedo/image/ppm.hpp"
 #include "albedo/light/point_light.hpp"
@@ -22,10 +27,14 @@
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string_view>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -37,8 +46,10 @@ constexpr int max_image_width{8192};
 constexpr int samples_per_axis{16};
 constexpr albedo::Real aspect_ratio{16.0 / 9.0};
 
-constexpr std::string_view usage{"usage: albedo <output.ppm> [width]\n"
-                                 "  width: image width in pixels, 16 to 8192 (default 960)\n"};
+constexpr std::string_view usage{
+    "usage: albedo <output.ppm> [width] [mesh.obj]\n"
+    "  width: image width in pixels, 16 to 8192 (default 960)\n"
+    "  mesh.obj: a Wavefront OBJ mesh to show in place of the glass and gold spheres\n"};
 
 // Parses the optional width argument. The whole string must be a base-10 integer
 // in range; anything else (signs, spaces, trailing text, overflow) is rejected.
@@ -91,19 +102,26 @@ void addRoom(albedo::Scene& scene)
               DiffuseMaterial{.albedo = {0.12, 0.45, 0.15}});
 }
 
-// One sphere of each material: smooth and frosted glass, rough gold and
-// copper, a silver mirror and matte blue.
-void addSpheres(albedo::Scene& scene)
+// The two largest spheres, in the middle of the room: smooth glass and rough gold.
+void addCentralSpheres(albedo::Scene& scene)
+{
+    using albedo::Point3r;
+    using albedo::Sphere;
+    scene.add(Sphere{Point3r{-0.9, 1.0, -1.0}, 1.0},
+              albedo::DielectricMaterial{.ior = 1.5, .roughness = 0.0});
+    scene.add(Sphere{Point3r{1.6, 0.8, -2.2}, 0.8},
+              albedo::ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.25});
+}
+
+// Smaller spheres around the edges: a silver mirror, frosted glass, rough
+// copper and matte blue.
+void addOuterSpheres(albedo::Scene& scene)
 {
     using albedo::ConductorMaterial;
     using albedo::DielectricMaterial;
     using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
-    scene.add(Sphere{Point3r{-0.9, 1.0, -1.0}, 1.0},
-              DielectricMaterial{.ior = 1.5, .roughness = 0.0});
-    scene.add(Sphere{Point3r{1.6, 0.8, -2.2}, 0.8},
-              ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.25});
     scene.add(Sphere{Point3r{-1.9, 0.6, 1.3}, 0.6},
               ConductorMaterial{.eta = silver_eta, .k = silver_k, .roughness = 0.0});
     scene.add(Sphere{Point3r{1.8, 0.45, 0.8}, 0.45},
@@ -124,11 +142,93 @@ void addLights(albedo::Scene& scene)
     scene.setSky(albedo::SkyLight::uniform({0.05, 0.06, 0.08}));
 }
 
-albedo::Scene buildScene()
+// Where a mesh goes: the middle of the room, clear of the outer spheres, with
+// its longest side this long.
+constexpr albedo::Point3r mesh_center{0.3, 1.55, -1.4};
+constexpr albedo::Real mesh_size{3.0};
+
+// `mesh` without faces that lack area and without positions no remaining face
+// uses, so its positions span exactly what can be seen.
+albedo::TriangleMesh visiblePart(const albedo::TriangleMesh& mesh)
+{
+    constexpr std::size_t unused{std::numeric_limits<std::size_t>::max()};
+    const std::span<const albedo::Point3r> all_positions{mesh.positions()};
+    std::vector<std::size_t> new_index(all_positions.size(), unused);
+    std::vector<albedo::Point3r> positions;
+    std::vector<albedo::TriangleMesh::Face> faces;
+    for (const albedo::TriangleMesh::Face& face : mesh.faces()) {
+        if (!albedo::formsTriangle(all_positions[face.at(0)], all_positions[face.at(1)],
+                                   all_positions[face.at(2)])) {
+            continue;
+        }
+        albedo::TriangleMesh::Face renumbered{};
+        for (std::size_t corner{0}; corner < renumbered.size(); ++corner) {
+            std::size_t& index{new_index[face.at(corner)]};
+            if (index == unused) {
+                index = positions.size();
+                positions.push_back(all_positions[face.at(corner)]);
+            }
+            renumbered.at(corner) = index;
+        }
+        faces.push_back(renumbered);
+    }
+    return albedo::TriangleMesh{std::move(positions), std::move(faces)};
+}
+
+// The visible part of the mesh at `path`, scaled uniformly and moved so the box
+// around it is centred on `center` with its longest side `size` long. Throws
+// `std::runtime_error` naming the file if it cannot be read or has nothing to show.
+albedo::TriangleMesh fittedMesh(const std::filesystem::path& path, albedo::Point3r center,
+                                albedo::Real size)
+{
+    const auto fail{[&](std::string_view problem) {
+        return std::runtime_error{std::format("{}: {}", path.string(), problem)};
+    }};
+    std::optional<albedo::TriangleMesh> mesh;
+    try {
+        mesh = visiblePart(albedo::readObj(path));
+    } catch (const albedo::ObjParseError& error) {
+        throw fail(error.what());
+    }
+    if (mesh->faces().empty()) {
+        throw fail("the mesh has no triangles");
+    }
+    albedo::Bounds3r box;
+    for (const albedo::Point3r& position : mesh->positions()) {
+        box = merged(box, position);
+    }
+    const albedo::Vector3r extent{box.extent()};
+    const albedo::Real scale{size / std::max({extent.x, extent.y, extent.z})};
+    if (!std::isfinite(scale) || !(scale > 0)) {
+        throw fail("the mesh is too large to scale into the room");
+    }
+    // Halved before adding, so huge coordinates cannot overflow.
+    const albedo::Point3r box_center{box.min.x / 2 + box.max.x / 2, box.min.y / 2 + box.max.y / 2,
+                                     box.min.z / 2 + box.max.z / 2};
+    std::vector<albedo::Point3r> positions;
+    positions.reserve(mesh->positions().size());
+    for (const albedo::Point3r& position : mesh->positions()) {
+        positions.push_back(center + (position - box_center) * scale);
+    }
+    albedo::TriangleMesh fitted{std::move(positions), {mesh->faces().begin(), mesh->faces().end()}};
+    if (fitted.triangles().empty()) {
+        throw fail("no triangle of the mesh keeps an area once scaled");
+    }
+    return fitted;
+}
+
+// The showcase room; a mesh, when given, replaces the two central spheres.
+albedo::Scene buildScene(const std::optional<std::filesystem::path>& mesh_path)
 {
     albedo::Scene scene;
     addRoom(scene);
-    addSpheres(scene);
+    if (mesh_path) {
+        scene.add(fittedMesh(*mesh_path, mesh_center, mesh_size),
+                  albedo::ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.15});
+    } else {
+        addCentralSpheres(scene);
+    }
+    addOuterSpheres(scene);
     addLights(scene);
     return scene;
 }
@@ -144,10 +244,11 @@ albedo::PerspectiveCamera buildCamera(int width, int height)
 }
 
 // Renders the scene into a `width` x (`width` * 9 / 16) image and writes it to `output`.
-void renderTo(const std::filesystem::path& output, int width)
+void renderTo(const std::filesystem::path& output, int width,
+              const std::optional<std::filesystem::path>& mesh_path)
 {
     const int height{std::max(1, static_cast<int>(std::lround(width / aspect_ratio)))};
-    const albedo::Scene scene{buildScene()};
+    const albedo::Scene scene{buildScene(mesh_path)};
     const albedo::PerspectiveCamera camera{buildCamera(width, height)};
     albedo::PixelBuffer image{width, height};
     albedo::renderImage({.camera = camera,
@@ -164,11 +265,11 @@ void renderTo(const std::filesystem::path& output, int width)
 int main(int argc, char* argv[])
 {
     const std::span args{argv, static_cast<std::size_t>(argc)};
-    if (args.size() != 2 && args.size() != 3) {
+    if (args.size() < 2 || args.size() > 4) {
         std::cerr << usage;
         return EXIT_FAILURE;
     }
-    const std::optional<int> width{args.size() == 3 ? parseImageWidth(args[2])
+    const std::optional<int> width{args.size() >= 3 ? parseImageWidth(args[2])
                                                     : default_image_width};
     if (!width) {
         std::cerr << std::format("albedo: invalid width '{}'\n{}", args[2], usage);
@@ -179,7 +280,9 @@ int main(int argc, char* argv[])
         // On Windows `argv` is in the ANSI code page, so a path with characters
         // outside it arrives mangled. Supporting that needs `wmain`; not worth it yet.
         const std::filesystem::path output{args[1]};
-        renderTo(output, *width);
+        const std::optional<std::filesystem::path> mesh_path{
+            args.size() == 4 ? std::optional<std::filesystem::path>{args[3]} : std::nullopt};
+        renderTo(output, *width, mesh_path);
         std::cout << std::format("albedo: wrote {}\n", output.string());
     } catch (const std::exception& error) {
         std::cerr << std::format("albedo: {}\n", error.what());
