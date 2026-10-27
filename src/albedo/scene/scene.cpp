@@ -34,7 +34,13 @@ void Scene::add(const TriangleMesh& mesh, const Material& material)
 {
     // Reserving up front, with appends that cannot throw, means the loop cannot
     // fail part-way. Doubling keeps repeated calls amortized, as in addAreaLight.
-    static_assert(std::is_nothrow_copy_constructible_v<SceneObject> &&
+    // Each append builds an object from a triangle and the material, then moves
+    // it into place. (Copying a SceneObject is not needed, and is not guaranteed
+    // to be noexcept: the standard leaves std::variant's copy constructor without
+    // a noexcept specification unless every alternative is trivially copy
+    // constructible.)
+    static_assert(std::is_nothrow_constructible_v<Shape, const Triangle&> &&
+                      std::is_nothrow_copy_constructible_v<Material> &&
                       std::is_nothrow_move_constructible_v<SceneObject>,
                   "Scene::add(const TriangleMesh&) relies on non-throwing appends after reserve");
     const std::vector<Triangle> triangles{mesh.triangles()};
@@ -59,6 +65,10 @@ void Scene::addAreaLight(const Sphere& sphere, Rgb radiance, const Material& mat
     // Make room first so the object cannot fail to be added after its light was:
     // that would leave a light no ray can hit. Doubling keeps repeated calls
     // amortized constant, as push_back's own growth would.
+    static_assert(std::is_nothrow_constructible_v<Shape, const Sphere&> &&
+                      std::is_nothrow_copy_constructible_v<Material> &&
+                      std::is_nothrow_move_constructible_v<SceneObject>,
+                  "Scene::addAreaLight relies on a non-throwing append after reserve");
     if (objects.size() == objects.capacity()) {
         objects.reserve(std::max<std::size_t>(1, 2 * objects.capacity()));
     }

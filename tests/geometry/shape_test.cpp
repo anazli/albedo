@@ -1,10 +1,14 @@
 #include "albedo/geometry/shape.hpp"
 
+#include "albedo/core/transform.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/triangle_mesh.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <optional>
 
 namespace albedo {
@@ -30,6 +34,7 @@ TEST(ShapeTest, typeWithoutBoundsIsNotAShape)
 {
     static_assert(ShapeLike<Sphere>);
     static_assert(ShapeLike<Triangle>);
+    static_assert(ShapeLike<MeshInstance>);
     static_assert(!ShapeLike<ShapeWithoutBounds>);
 }
 
@@ -58,6 +63,18 @@ TEST(ShapeTest, intersectDispatchesToAHeldTriangle)
     const ShapeHit hit{requireValue(intersect(shape, ray, Interval{.min = 0.0, .max = 10.0}))};
 
     EXPECT_NEAR(hit.t, 3.0, default_tolerance);
+}
+
+TEST(ShapeTest, intersectDispatchesToAHeldMeshInstance)
+{
+    const auto geometry{std::make_shared<const MeshGeometry>(
+        TriangleMesh{{{-1.0, -1.0, -3.0}, {1.0, -1.0, -3.0}, {0.0, 1.0, -3.0}}, {{0, 1, 2}}})};
+    const Shape shape{MeshInstance{geometry, Transform::translation({0.0, 0.0, -1.0})}};
+    const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const ShapeHit hit{requireValue(intersect(shape, ray, Interval{.min = 0.0, .max = 10.0}))};
+
+    EXPECT_NEAR(hit.t, 4.0, default_tolerance);
 }
 
 TEST(ShapeTest, boundsDispatchesToTheHeldShape)
