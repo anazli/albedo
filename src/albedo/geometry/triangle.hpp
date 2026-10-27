@@ -53,6 +53,12 @@ public:
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray,
                                                     Interval t_range) const noexcept;
 
+    /// Texture coordinates of `hit`, which `intersect` already interpolated.
+    [[nodiscard]] static Point2r textureCoordinatesAt(const ShapeHit& hit) noexcept
+    {
+        return hit.uv;
+    }
+
     /// The axis-aligned box enclosing the triangle.
     [[nodiscard]] Bounds3r bounds() const noexcept;
 

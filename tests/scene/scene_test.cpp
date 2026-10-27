@@ -502,5 +502,23 @@ TEST(SceneTest, instancesBeyondAShadowRayDoNotBlockIt)
     EXPECT_FALSE(sceneWithAScaledInstance().occluded(forward_ray, {.min = 0.0, .max = 9.0}));
 }
 
+TEST(SceneTest, hitRecordCarriesTheTextureCoordinatesOfAMeshTriangle)
+{
+    // A textured square at depth -5; the ray hits (0.5, -0.5), three quarters
+    // across in u and a quarter up in v.
+    Scene scene;
+    scene.add(
+        TriangleMesh{{{-1.0, -1.0, -5.0}, {1.0, -1.0, -5.0}, {1.0, 1.0, -5.0}, {-1.0, 1.0, -5.0}},
+                     {{0, 1, 2}, {0, 2, 3}},
+                     {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}},
+                     {{0, 1, 2}, {0, 2, 3}}},
+        matte);
+    const Ray ray{.origin = {0.5, -0.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.75, 0.25});
+}
+
 } // namespace
 } // namespace albedo

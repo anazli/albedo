@@ -2,6 +2,7 @@
 
 #include "albedo/core/bounds3.hpp"
 #include "albedo/core/interval.hpp"
+#include "albedo/core/point2.hpp"
 #include "albedo/core/ray.hpp"
 #include "albedo/core/transform.hpp"
 #include "albedo/geometry/shape_hit.hpp"
@@ -35,6 +36,12 @@ public:
     /// mesh's. A normal too short or too long to normalize counts as a miss.
     /// Throws only what `MeshGeometry::intersect` throws.
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray, Interval t_range) const;
+
+    /// Texture coordinates of `hit`, which `intersect` took from the mesh.
+    [[nodiscard]] static Point2r textureCoordinatesAt(const ShapeHit& hit) noexcept
+    {
+        return hit.uv;
+    }
 
     /// The axis-aligned box enclosing the placed mesh.
     [[nodiscard]] Bounds3r bounds() const noexcept { return placement->world_bounds; }

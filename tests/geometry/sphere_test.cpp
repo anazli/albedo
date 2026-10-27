@@ -266,9 +266,9 @@ TEST(SphereTest, textureCoordinatesFollowLongitudeAndLatitude)
     const ShapeHit right_side{requireValue(unitSphere().intersect(towards_right_side, positive_t))};
     const ShapeHit back{requireValue(unitSphere().intersect(towards_back, positive_t))};
 
-    expectNear(front.uv, Point2r{0.25, 0.5});
-    expectNear(right_side.uv, Point2r{0.5, 0.5});
-    expectNear(back.uv, Point2r{0.75, 0.5});
+    expectNear(Sphere::textureCoordinatesAt(front), Point2r{0.25, 0.5});
+    expectNear(Sphere::textureCoordinatesAt(right_side), Point2r{0.5, 0.5});
+    expectNear(Sphere::textureCoordinatesAt(back), Point2r{0.75, 0.5});
 }
 
 TEST(SphereTest, textureCoordinateVRunsFromBottomToTopPole)
@@ -279,8 +279,8 @@ TEST(SphereTest, textureCoordinateVRunsFromBottomToTopPole)
     const ShapeHit top{requireValue(unitSphere().intersect(down_onto_top, positive_t))};
     const ShapeHit bottom{requireValue(unitSphere().intersect(up_onto_bottom, positive_t))};
 
-    EXPECT_NEAR(top.uv.y, 1.0, default_tolerance);
-    EXPECT_NEAR(bottom.uv.y, 0.0, default_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(top).y, 1.0, default_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(bottom).y, 0.0, default_tolerance);
 }
 
 TEST(SphereTest, textureCoordinateUWrapsAroundAtTheSeam)
@@ -294,8 +294,8 @@ TEST(SphereTest, textureCoordinateUWrapsAroundAtTheSeam)
     const ShapeHit behind{requireValue(sphere.intersect(behind_seam, positive_t))};
     const ShapeHit in_front{requireValue(sphere.intersect(in_front_of_seam, positive_t))};
 
-    EXPECT_NEAR(behind.uv.x, 1.0, exact_tolerance);
-    EXPECT_NEAR(in_front.uv.x, 0.0, exact_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(behind).x, 1.0, exact_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(in_front).x, 0.0, exact_tolerance);
 }
 
 TEST(SphereTest, textureCoordinatesStayInTheUnitSquare)
@@ -314,11 +314,20 @@ TEST(SphereTest, textureCoordinatesStayInTheUnitSquare)
         const Ray ray{.origin = sphere.center(), .direction = direction};
         const ShapeHit hit{requireValue(sphere.intersect(ray, positive_t))};
 
-        EXPECT_GE(hit.uv.x, 0.0);
-        EXPECT_LE(hit.uv.x, 1.0);
-        EXPECT_GE(hit.uv.y, 0.0);
-        EXPECT_LE(hit.uv.y, 1.0);
+        const Point2r uv{Sphere::textureCoordinatesAt(hit)};
+
+        EXPECT_GE(uv.x, 0.0);
+        EXPECT_LE(uv.x, 1.0);
+        EXPECT_GE(uv.y, 0.0);
+        EXPECT_LE(uv.y, 1.0);
     }
+}
+
+TEST(SphereDeathTest, textureCoordinatesRejectANormalWithoutUnitLength)
+{
+    const ShapeHit hit{.t = 1.0, .point = {0.0, 0.0, -4.0}, .normal = {0.0, 0.0, 2.0}};
+
+    EXPECT_DEBUG_DEATH(static_cast<void>(Sphere::textureCoordinatesAt(hit)), "");
 }
 
 } // namespace
