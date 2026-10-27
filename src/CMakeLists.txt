@@ -33,6 +33,7 @@ target_sources(albedo_core
         albedo/scattering/scattering.cpp
         albedo/scattering/specular.cpp
         albedo/scene/scene.cpp
+        albedo/scene/scene_file.cpp
         albedo/texture/checker_texture.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -96,6 +97,7 @@ target_sources(albedo_core
             albedo/scattering/specular.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
+            albedo/scene/scene_file.hpp
             albedo/scene/scene_object.hpp
             albedo/texture/checker_texture.hpp
             albedo/texture/constant_texture.hpp

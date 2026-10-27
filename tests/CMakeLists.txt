@@ -60,6 +60,7 @@ add_executable(albedo_tests
     scattering/lobe_test.cpp
     scattering/scattering_test.cpp
     scattering/specular_test.cpp
+    scene/scene_file_test.cpp
     scene/scene_test.cpp
     texture/checker_texture_test.cpp
     texture/constant_texture_test.cpp
