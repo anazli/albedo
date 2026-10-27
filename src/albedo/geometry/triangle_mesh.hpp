@@ -33,8 +33,9 @@ public:
     /// two-argument constructor does, `std::invalid_argument` if a texture
     /// coordinate is not finite or `texture_faces` is not empty and not as long as
     /// `faces`, and `std::out_of_range` if a texture index is not below
-    /// `texture_coordinates.size()`. Empty `texture_faces` means no texture
-    /// coordinates, as for the two-argument constructor.
+    /// `texture_coordinates.size()`. Empty `texture_faces` means the faces have no
+    /// texture coordinates, as for the two-argument constructor; any
+    /// `texture_coordinates` given are still kept.
     TriangleMesh(std::vector<Point3r> positions, std::vector<Face> faces,
                  std::vector<Point2r> texture_coordinates, std::vector<Face> texture_faces);
 
@@ -48,7 +49,8 @@ public:
     [[nodiscard]] std::span<const Point2r> textureCoordinates() const noexcept { return vertex_uv; }
 
     /// Per face, the indices into `textureCoordinates()` of its corners; empty
-    /// when the mesh has no texture coordinates.
+    /// when the faces have no texture coordinates (`textureCoordinates()` may
+    /// still hold some).
     [[nodiscard]] std::span<const Face> textureFaces() const noexcept { return texture_face_list; }
 
     /// One triangle per face, in face order, skipping faces without a computable

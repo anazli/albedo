@@ -304,6 +304,155 @@ TEST(ObjTest, acceptsEmptyTextureAndNormalParts)
     EXPECT_EQ(mesh.faces().size(), 1U);
 }
 
+TEST(ObjTest, readsTextureCoordinatesWithVDefaultingToZero)
+{
+    const TriangleMesh mesh{readObjText("vt 0.25\n"
+                                        "vt 0.5 0.75\n"
+                                        "vt 0.125 1 0.3\n")};
+
+    ASSERT_EQ(mesh.textureCoordinates().size(), 3U);
+    expectNear(mesh.textureCoordinates()[0], Point2r{0.25, 0.0}, exact_tolerance);
+    expectNear(mesh.textureCoordinates()[1], Point2r{0.5, 0.75}, exact_tolerance);
+    expectNear(mesh.textureCoordinates()[2], Point2r{0.125, 1.0}, exact_tolerance);
+}
+
+TEST(ObjTest, ignoresNumbersAfterTheThirdTextureCoordinate)
+{
+    const TriangleMesh mesh{readObjText("vt 0.5 0.75 0 7 8\n")};
+
+    ASSERT_EQ(mesh.textureCoordinates().size(), 1U);
+    expectNear(mesh.textureCoordinates()[0], Point2r{0.5, 0.75}, exact_tolerance);
+}
+
+TEST(ObjTest, facesWithTextureIndicesGiveTextureFaces)
+{
+    const TriangleMesh mesh{readObjText("v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+                                        "vt 0 0\nvt 1 0\nvt 0 1\n"
+                                        "f 1/3 2/1 3/2\n"
+                                        "f 1/1/1 2/2/1 3/3/1\n")};
+
+    ASSERT_EQ(mesh.textureFaces().size(), 2U);
+    EXPECT_EQ(mesh.textureFaces()[0], (TriangleMesh::Face{2, 0, 1}));
+    EXPECT_EQ(mesh.textureFaces()[1], (TriangleMesh::Face{0, 1, 2}));
+}
+
+TEST(ObjTest, polygonTextureFacesFollowTheFan)
+{
+    const TriangleMesh mesh{readObjText("v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+                                        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+                                        "f 1/4 2/3 3/2 4/1\n")};
+
+    ASSERT_EQ(mesh.textureFaces().size(), 2U);
+    EXPECT_EQ(mesh.textureFaces()[0], (TriangleMesh::Face{3, 2, 1}));
+    EXPECT_EQ(mesh.textureFaces()[1], (TriangleMesh::Face{3, 1, 0}));
+}
+
+TEST(ObjTest, negativeTextureIndicesCountBackFromTheLatestTextureCoordinate)
+{
+    const TriangleMesh mesh{readObjText("v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+                                        "vt 9 9\nvt 0 0\nvt 1 0\nvt 0 1\n"
+                                        "f 1/-3 2/-2 3/-1\n")};
+
+    ASSERT_EQ(mesh.textureFaces().size(), 1U);
+    EXPECT_EQ(mesh.textureFaces()[0], (TriangleMesh::Face{1, 2, 3}));
+}
+
+TEST(ObjTest, facesWithoutTextureIndicesGiveNoTextureFaces)
+{
+    const TriangleMesh mesh{readObjText(std::string{"vt 0 0\n"} + std::string{one_triangle})};
+
+    EXPECT_EQ(mesh.faces().size(), 1U);
+    EXPECT_TRUE(mesh.textureFaces().empty());
+    EXPECT_EQ(mesh.textureCoordinates().size(), 1U);
+}
+
+TEST(ObjTest, oneFaceWithoutTextureIndicesDropsTextureFacesForTheMesh)
+{
+    // The mesh has one texture face per face or none, so a face lacking texture
+    // indices on any corner leaves the whole mesh without them, in either order.
+    constexpr std::string_view vertices{"v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\n"};
+    for (const std::string_view faces :
+         {"f 1/1 2/1 3/1\nf 1 2 3\n", "f 1/1 2/1 3/1\nf 1/1 2 3/1\n",
+          "f 1/1 2/1 3/1\nf 1// 2//1 3//\n", "f 1 2 3\nf 1/1 2/1 3/1\n"}) {
+        const TriangleMesh mesh{readObjText(std::string{vertices} + std::string{faces})};
+
+        EXPECT_EQ(mesh.faces().size(), 2U) << "faces: " << faces;
+        EXPECT_TRUE(mesh.textureFaces().empty()) << "faces: " << faces;
+        EXPECT_EQ(mesh.textureCoordinates().size(), 1U) << "faces: " << faces;
+    }
+}
+
+TEST(ObjTest, polygonWithAMiddleCornerWithoutTextureIndexHasNoTextureFaces)
+{
+    const TriangleMesh mesh{readObjText("v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nvt 0 0\n"
+                                        "f 1/1 2/1 3 4/1\n")};
+
+    EXPECT_EQ(mesh.faces().size(), 2U);
+    EXPECT_TRUE(mesh.textureFaces().empty());
+}
+
+TEST(ObjTest, textureIndexErrorsNameTextureCoordinates)
+{
+    try {
+        static_cast<void>(readObjText("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/1 2/1 3/2\n"));
+        FAIL() << "expected an ObjParseError";
+    } catch (const ObjParseError& error) {
+        EXPECT_NE(std::string_view{error.what()}.find("texture coordinate"),
+                  std::string_view::npos);
+    }
+}
+
+TEST(ObjTest, rejectsTextureCoordinatesWithoutU)
+{
+    EXPECT_EQ(errorLine("vt 0 0\nvt\n"), 2U);
+}
+
+TEST(ObjTest, rejectsMalformedAndNonFiniteTextureCoordinates)
+{
+    for (const std::string_view line : {"vt a\n", "vt 0 b\n", "vt 0 0 c\n", "vt nan\n",
+                                        "vt 0 inf\n", "vt 1e999\n", "vt 0 0 0 x\n"}) {
+        EXPECT_EQ(errorLine(line), 1U) << "line: " << line;
+    }
+}
+
+TEST(ObjTest, rejectsTextureIndexZero)
+{
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/0 2/1 3/1\n"), 5U);
+}
+
+TEST(ObjTest, rejectsTextureIndicesBeyondThoseReadSoFar)
+{
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/1 2/1 3/2\n"), 5U);
+    // A texture coordinate defined after the face does not count.
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1/1 2/1 3/1\nvt 0 0\n"), 4U);
+}
+
+TEST(ObjTest, rejectsNegativeTextureIndicesReachingBeforeTheFirst)
+{
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/-1 2/-1 3/-2\n"), 5U);
+}
+
+TEST(ObjTest, rejectsTextureIndicesTooLargeForAnyInteger)
+{
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/1 2/1 3/99999999999999999999999\n"),
+              5U);
+    EXPECT_EQ(
+        errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/1 2/1 3/-99999999999999999999999\n"), 5U);
+    EXPECT_EQ(errorLine("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nf 1/1 2/1 3/-9223372036854775808\n"),
+              5U);
+}
+
+TEST(ObjTest, acceptsTextureCoordinatesUpToTheLimit)
+{
+    EXPECT_NO_THROW(
+        static_cast<void>(readObjText("vt 0 0\nvt 1 0\n", {.max_texture_coordinates = 2})));
+}
+
+TEST(ObjTest, rejectsMoreTextureCoordinatesThanTheLimit)
+{
+    EXPECT_EQ(errorLine("vt 0 0\nvt 1 0\nvt 0 1\n", {.max_texture_coordinates = 2}), 3U);
+}
+
 TEST(ObjTest, rejectsAStreamThatIsAlreadyFailed)
 {
     std::istringstream input{std::string{one_triangle}};
