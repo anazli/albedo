@@ -17,6 +17,9 @@ target_sources(albedo_core
         albedo/geometry/triangle_mesh.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
+        albedo/io/line_reader.cpp
+        albedo/io/path_text.cpp
+        albedo/io/tokens.cpp
         albedo/light/area_light.cpp
         albedo/light/point_light.cpp
         albedo/light/sky_light.cpp
@@ -31,6 +34,7 @@ target_sources(albedo_core
         albedo/scattering/scattering.cpp
         albedo/scattering/specular.cpp
         albedo/scene/scene.cpp
+        albedo/scene/scene_file.cpp
         albedo/texture/checker_texture.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -67,6 +71,9 @@ target_sources(albedo_core
             albedo/geometry/triangle_mesh.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
+            albedo/io/line_reader.hpp
+            albedo/io/path_text.hpp
+            albedo/io/tokens.hpp
             albedo/light/area_light.hpp
             albedo/light/light.hpp
             albedo/light/light_sample.hpp
@@ -92,6 +99,7 @@ target_sources(albedo_core
             albedo/scattering/specular.hpp
             albedo/scene/hit_record.hpp
             albedo/scene/scene.hpp
+            albedo/scene/scene_file.hpp
             albedo/scene/scene_object.hpp
             albedo/texture/checker_texture.hpp
             albedo/texture/constant_texture.hpp

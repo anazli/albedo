@@ -1,0 +1,44 @@
+# The showcase room with three copies of the trefoil knot in place of the
+# central spheres, standing on a checkered floor, and a checkered blue sphere.
+# Render with: albedo assets/meshes.scene out.ppm 1920
+
+camera from 0 2.4 7.8  at 0 1.9 -0.5  up 0 1 0  fov 38
+
+# Metal indices as in showcase.scene (Johnson and Christy, 1972).
+material gold    conductor eta 0.156 0.424 1.383  k 3.602 2.472 1.915  roughness 0.15
+material silver  conductor eta 0.052 0.060 0.040  k 4.409 3.597 2.648  roughness 0
+material copper  conductor eta 0.238 1.007 1.240  k 3.626 2.582 2.393  roughness 0.3
+material glass   dielectric ior 1.5  roughness 0
+material frosted dielectric ior 1.5  roughness 0.35
+material white   diffuse color 0.73 0.73 0.73
+material red     diffuse color 0.63 0.07 0.05
+material green   diffuse color 0.12 0.45 0.15
+material tiles   checker even 0.73 0.73 0.73  odd 0.3 0.3 0.3  frequency 1.25
+material blue_checks checker even 0.15 0.3 0.7  odd 0.8 0.8 0.8  frequency 8
+
+mesh floor floor.obj
+mesh knot  trefoil_knot.obj
+
+# The room, with a flat tiled floor instead of the floor sphere.
+instance floor material tiles
+sphere 0 10005 0       radius 10000  material white
+sphere 0 0 -10004      radius 10000  material white
+sphere -10003 0 0      radius 10000  material red
+sphere 10003 0 0       radius 10000  material green
+
+# Three copies of one knot, which share its triangles: each is scaled so its
+# longest side has the given length, turned, and stood on the floor.
+instance knot material gold    fit 2.6  rotate 0 1 0 20        ground  translate 0.1 0 -2.3
+instance knot material glass   fit 1.3  rotate 1 0 0 70        ground  translate -0.75 0 0.35
+instance knot material copper  fit 1.3  rotate 0.3 0.2 1 -40   ground  translate 1.45 0 -0.7
+
+# Smaller spheres around the edges; the blue one checkered in latitude and
+# longitude.
+sphere -1.9 0.6 1.3    radius 0.6    material silver
+sphere 1.8 0.45 0.8    radius 0.45   material frosted
+sphere 0.9 0.35 2.3    radius 0.35   material copper
+sphere -2.2 0.5 -2.8   radius 0.5    material blue_checks
+
+area_light 0 5.6 -1.2  radius 1.1  radiance 9 7.6 5.8
+point_light 0.8 4.2 3.2  intensity 1.2 2 3.6
+sky 0.05 0.06 0.08

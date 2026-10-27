@@ -1,0 +1,44 @@
+# The showcase: a room open towards the camera, after the Cornell box, with
+# spheres of glass, gold, silver, frosted glass, copper and blue paint.
+# Render with: albedo assets/showcase.scene out.ppm 1920
+
+camera from 0 2.4 7.8  at 0 1.9 -0.5  up 0 1 0  fov 38
+
+# Complex refractive indices of the noble metals, measured by Johnson and
+# Christy, "Optical Constants of the Noble Metals", Phys. Rev. B 6, 4370
+# (1972), taken from the refractiveindex.info database and linearly
+# interpolated at 650, 550 and 450 nm (one wavelength per channel).
+material gold    conductor eta 0.156 0.424 1.383  k 3.602 2.472 1.915  roughness 0.25
+material silver  conductor eta 0.052 0.060 0.040  k 4.409 3.597 2.648  roughness 0
+material copper  conductor eta 0.238 1.007 1.240  k 3.626 2.582 2.393  roughness 0.3
+material glass   dielectric ior 1.5  roughness 0
+material frosted dielectric ior 1.5  roughness 0.35
+material white   diffuse color 0.73 0.73 0.73
+material red     diffuse color 0.63 0.07 0.05
+material green   diffuse color 0.12 0.45 0.15
+material blue    diffuse color 0.15 0.3 0.7
+
+# The room: walls are spheres of radius 1e4, which look flat at this scale.
+# Floor, ceiling and back wall are white; the left wall red, the right green.
+sphere 0 -10000 0      radius 10000  material white
+sphere 0 10005 0       radius 10000  material white
+sphere 0 0 -10004      radius 10000  material white
+sphere -10003 0 0      radius 10000  material red
+sphere 10003 0 0       radius 10000  material green
+
+# The two largest spheres, in the middle: smooth glass and rough gold.
+sphere -0.9 1 -1       radius 1      material glass
+sphere 1.6 0.8 -2.2    radius 0.8    material gold
+
+# Smaller spheres around the edges.
+sphere -1.9 0.6 1.3    radius 0.6    material silver
+sphere 1.8 0.45 0.8    radius 0.45   material frosted
+sphere 0.9 0.35 2.3    radius 0.35   material copper
+sphere -2.2 0.5 -2.8   radius 0.5    material blue
+
+# A warm light set into the ceiling with only its lowest part showing (soft
+# shadows and a caustic under the glass), a small cool point light (hard
+# shadows) and a faint sky through the open front.
+area_light 0 5.6 -1.2  radius 1.1  radiance 9 7.6 5.8
+point_light 0.8 4.2 3.2  intensity 1.2 2 3.6
+sky 0.05 0.06 0.08

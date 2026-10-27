@@ -1,0 +1,11 @@
+# A floor of two triangles spanning the showcase room, facing up. Its texture
+# coordinates are its x and z coordinates, so a checker gives square tiles.
+v -3.5 0 12
+v 3.5 0 12
+v 3.5 0 -4.5
+v -3.5 0 -4.5
+vt -3.5 12
+vt 3.5 12
+vt 3.5 -4.5
+vt -3.5 -4.5
+f 1/1 2/2 3/3 4/4

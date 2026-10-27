@@ -40,6 +40,9 @@ add_executable(albedo_tests
     geometry/triangle_test.cpp
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
+    io/line_reader_test.cpp
+    io/path_text_test.cpp
+    io/tokens_test.cpp
     light/area_light_test.cpp
     light/light_test.cpp
     light/point_light_test.cpp
@@ -58,6 +61,7 @@ add_executable(albedo_tests
     scattering/lobe_test.cpp
     scattering/scattering_test.cpp
     scattering/specular_test.cpp
+    scene/scene_file_test.cpp
     scene/scene_test.cpp
     texture/checker_texture_test.cpp
     texture/constant_texture_test.cpp
@@ -73,106 +77,153 @@ include(GoogleTest)
 gtest_discover_tests(albedo_tests WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # Smoke tests of the command-line app.
-add_test(NAME app.rejectsMissingOutputPath COMMAND albedo)
-set_tests_properties(app.rejectsMissingOutputPath PROPERTIES WILL_FAIL TRUE)
-add_test(NAME app.rejectsTooManyArguments COMMAND albedo a.ppm 64 mesh.obj extra)
+set(showcase_scene ${PROJECT_SOURCE_DIR}/assets/showcase.scene)
+add_test(NAME app.rejectsMissingArguments COMMAND albedo)
+set_tests_properties(app.rejectsMissingArguments PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.rejectsAMissingOutputPath COMMAND albedo ${showcase_scene})
+set_tests_properties(app.rejectsAMissingOutputPath PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.rejectsTooManyArguments COMMAND albedo ${showcase_scene} a.ppm 64 extra)
 set_tests_properties(app.rejectsTooManyArguments PROPERTIES WILL_FAIL TRUE)
 # WILL_FAIL accepts any failure (even a crash), so also check the usage text is printed.
 add_test(NAME app.printsUsageOnWrongArguments COMMAND albedo)
 set_tests_properties(app.printsUsageOnWrongArguments PROPERTIES
-    PASS_REGULAR_EXPRESSION "usage: albedo <output.ppm> \\[width\\]")
+    PASS_REGULAR_EXPRESSION "usage: albedo <scene> <output.ppm> \\[width\\]")
 # Each invalid width is checked twice: PASS_REGULAR_EXPRESSION ignores the exit
 # code, so a separate WILL_FAIL test checks that the app also fails.
 foreach(bad_width IN ITEMS abc 0 15 8193 -64 +64 64px 99999999999)
-    add_test(NAME app.rejectsWidth_${bad_width} COMMAND albedo bad.ppm ${bad_width})
+    add_test(NAME app.rejectsWidth_${bad_width} COMMAND albedo ${showcase_scene} bad.ppm ${bad_width})
     set_tests_properties(app.rejectsWidth_${bad_width} PROPERTIES
         PASS_REGULAR_EXPRESSION "invalid width")
-    add_test(NAME app.failsOnWidth_${bad_width} COMMAND albedo bad.ppm ${bad_width})
+    add_test(NAME app.failsOnWidth_${bad_width} COMMAND albedo ${showcase_scene} bad.ppm ${bad_width})
     set_tests_properties(app.failsOnWidth_${bad_width} PROPERTIES WILL_FAIL TRUE)
 endforeach()
-add_test(NAME app.rejectsEmptyWidth COMMAND albedo bad.ppm "")
+add_test(NAME app.rejectsEmptyWidth COMMAND albedo ${showcase_scene} bad.ppm "")
 set_tests_properties(app.rejectsEmptyWidth PROPERTIES PASS_REGULAR_EXPRESSION "invalid width")
-add_test(NAME app.rejectsSpacePaddedWidth COMMAND albedo bad.ppm " 64")
+add_test(NAME app.rejectsSpacePaddedWidth COMMAND albedo ${showcase_scene} bad.ppm " 64")
 set_tests_properties(app.rejectsSpacePaddedWidth PROPERTIES
     PASS_REGULAR_EXPRESSION "invalid width")
 # Outside the loop because an empty item is dropped and a space breaks the test name.
-add_test(NAME app.failsOnEmptyWidth COMMAND albedo bad.ppm "")
+add_test(NAME app.failsOnEmptyWidth COMMAND albedo ${showcase_scene} bad.ppm "")
 set_tests_properties(app.failsOnEmptyWidth PROPERTIES WILL_FAIL TRUE)
-add_test(NAME app.failsOnSpacePaddedWidth COMMAND albedo bad.ppm " 64")
+add_test(NAME app.failsOnSpacePaddedWidth COMMAND albedo ${showcase_scene} bad.ppm " 64")
 set_tests_properties(app.failsOnSpacePaddedWidth PROPERTIES WILL_FAIL TRUE)
 # The smallest accepted width; the largest (8192) is not rendered, it would be too slow here.
-add_test(NAME app.acceptsMinimumWidth COMMAND albedo ${CMAKE_CURRENT_BINARY_DIR}/min_width.ppm 16)
+add_test(NAME app.acceptsMinimumWidth
+    COMMAND albedo ${showcase_scene} ${CMAKE_CURRENT_BINARY_DIR}/min_width.ppm 16)
 
-# A small render keeps the smoke test fast in sanitizer builds.
-set(smoke_image ${CMAKE_CURRENT_BINARY_DIR}/smoke.ppm)
-add_test(NAME app.removeOldSmokeImage COMMAND ${CMAKE_COMMAND} -E rm -f ${smoke_image})
-add_test(NAME app.writesImage COMMAND albedo ${smoke_image} 64)
-# md5sum fails when the file is missing, so this checks the app actually wrote it.
-add_test(NAME app.smokeImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${smoke_image})
-set_tests_properties(app.removeOldSmokeImage PROPERTIES FIXTURES_SETUP smoke_cleared)
-set_tests_properties(app.writesImage PROPERTIES
-    FIXTURES_REQUIRED smoke_cleared
-    FIXTURES_SETUP smoke_written)
-set_tests_properties(app.smokeImageExists PROPERTIES FIXTURES_REQUIRED smoke_written)
+# Renders that must write an image: the app runs between a step that removes
+# any old image and one whose md5sum fails if the image is missing.
+function(albedo_add_render_test name scene image width)
+    add_test(NAME app.removeOld_${name} COMMAND ${CMAKE_COMMAND} -E rm -f ${image})
+    add_test(NAME app.${name} COMMAND albedo ${scene} ${image} ${width})
+    add_test(NAME app.${name}_imageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${image})
+    set_tests_properties(app.removeOld_${name} PROPERTIES FIXTURES_SETUP ${name}_cleared)
+    set_tests_properties(app.${name} PROPERTIES
+        FIXTURES_REQUIRED ${name}_cleared
+        FIXTURES_SETUP ${name}_written)
+    set_tests_properties(app.${name}_imageExists PROPERTIES FIXTURES_REQUIRED ${name}_written)
+endfunction()
+# Small renders keep the smoke tests fast in sanitizer builds.
+albedo_add_render_test(rendersTheShowcase ${showcase_scene}
+    ${CMAKE_CURRENT_BINARY_DIR}/smoke.ppm 64)
+albedo_add_render_test(rendersTheMeshesScene ${PROJECT_SOURCE_DIR}/assets/meshes.scene
+    ${CMAKE_CURRENT_BINARY_DIR}/meshes.ppm 16)
 
-# Rendering a mesh: the committed sample renders, and unusable meshes are
-# reported. Each failure is checked twice, as for the widths above.
-set(mesh_image ${CMAKE_CURRENT_BINARY_DIR}/mesh.ppm)
-add_test(NAME app.removeOldMeshImage COMMAND ${CMAKE_COMMAND} -E rm -f ${mesh_image})
-add_test(NAME app.rendersAMesh
-    COMMAND albedo ${mesh_image} 16 ${PROJECT_SOURCE_DIR}/assets/trefoil_knot.obj)
-add_test(NAME app.meshImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${mesh_image})
-set_tests_properties(app.removeOldMeshImage PROPERTIES FIXTURES_SETUP mesh_cleared)
-set_tests_properties(app.rendersAMesh PROPERTIES
-    FIXTURES_REQUIRED mesh_cleared
-    FIXTURES_SETUP mesh_written)
-set_tests_properties(app.meshImageExists PROPERTIES FIXTURES_REQUIRED mesh_written)
-set(missing_mesh ${CMAKE_CURRENT_BINARY_DIR}/no_such_mesh.obj)
-set(malformed_mesh ${CMAKE_CURRENT_BINARY_DIR}/malformed_mesh.obj)
-set(empty_mesh ${CMAKE_CURRENT_BINARY_DIR}/empty_mesh.obj)
-set(degenerate_mesh ${CMAKE_CURRENT_BINARY_DIR}/degenerate_mesh.obj)
-set(huge_mesh ${CMAKE_CURRENT_BINARY_DIR}/huge_mesh.obj)
-set(sliver_mesh ${CMAKE_CURRENT_BINARY_DIR}/sliver_mesh.obj)
-file(WRITE ${malformed_mesh} "v 0 0 0\nf 1 2 3\n")
-file(WRITE ${empty_mesh} "v 0 0 0\nv 1 0 0\nv 0 1 0\n")
+# Scenes the app must reject, each checked twice as for the widths above.
+add_test(NAME app.failsOnAMissingScene COMMAND albedo no_such.scene bad.ppm 16)
+set_tests_properties(app.failsOnAMissingScene PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.reportsAMissingScene COMMAND albedo no_such.scene bad.ppm 16)
+set_tests_properties(app.reportsAMissingScene PROPERTIES
+    PASS_REGULAR_EXPRESSION "cannot open scene file 'no_such.scene'")
+# A directory where a scene file belongs: reported with its path.
+set(directory_scene ${CMAKE_CURRENT_BINARY_DIR}/directory_as_scene)
+file(MAKE_DIRECTORY ${directory_scene})
+add_test(NAME app.failsOnADirectoryAsScene COMMAND albedo ${directory_scene} bad.ppm 16)
+set_tests_properties(app.failsOnADirectoryAsScene PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.reportsADirectoryAsScene COMMAND albedo ${directory_scene} bad.ppm 16)
+set_tests_properties(app.reportsADirectoryAsScene PROPERTIES
+    PASS_REGULAR_EXPRESSION "directory_as_scene' is not a regular file")
+# Output naming the scene itself must not destroy it. A throwaway copy, so a
+# failing guard cannot damage a real scene; it is restored before the tests and
+# compared with the original after them.
+set(same_file_scene ${CMAKE_CURRENT_BINARY_DIR}/same_file.scene)
+set(same_file_original ${CMAKE_CURRENT_BINARY_DIR}/same_file_original.scene)
+file(WRITE ${same_file_original} "camera from 0 0 5 at 0 0 0\n")
+add_test(NAME app.restoreSameFileScene
+    COMMAND ${CMAKE_COMMAND} -E copy ${same_file_original} ${same_file_scene})
+add_test(NAME app.failsWhenTheOutputIsTheScene
+    COMMAND albedo ${same_file_scene} ${same_file_scene} 16)
+set_tests_properties(app.failsWhenTheOutputIsTheScene PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.reportsWhenTheOutputIsTheScene
+    COMMAND albedo ${same_file_scene} ${same_file_scene} 16)
+set_tests_properties(app.reportsWhenTheOutputIsTheScene PROPERTIES
+    PASS_REGULAR_EXPRESSION "the output would overwrite the scene file")
+add_test(NAME app.sameFileSceneIsUntouched
+    COMMAND ${CMAKE_COMMAND} -E compare_files ${same_file_original} ${same_file_scene})
+set_tests_properties(app.restoreSameFileScene PROPERTIES FIXTURES_SETUP same_file_restored)
+set_tests_properties(app.failsWhenTheOutputIsTheScene app.reportsWhenTheOutputIsTheScene
+    PROPERTIES FIXTURES_REQUIRED same_file_restored FIXTURES_SETUP same_file_used)
+set_tests_properties(app.sameFileSceneIsUntouched PROPERTIES FIXTURES_REQUIRED same_file_used)
+set(malformed_scene ${CMAKE_CURRENT_BINARY_DIR}/malformed.scene)
+file(WRITE ${malformed_scene} "camera from 0 0 0\n")
+add_test(NAME app.failsOnAMalformedScene COMMAND albedo ${malformed_scene} bad.ppm 16)
+set_tests_properties(app.failsOnAMalformedScene PROPERTIES WILL_FAIL TRUE)
+add_test(NAME app.reportsAMalformedScene COMMAND albedo ${malformed_scene} bad.ppm 16)
+set_tests_properties(app.reportsAMalformedScene PROPERTIES
+    PASS_REGULAR_EXPRESSION "malformed.scene: scene line 1: missing 'at'")
+
+# Meshes a scene cannot use, each in its own directory beside a scene that
+# fits it into view; these were mesh arguments before scene files existed.
+# `mesh_text` must be one argument; more would be dropped, so they are refused.
+function(albedo_write_mesh_case case mesh_text)
+    if(ARGC GREATER 2)
+        message(FATAL_ERROR "albedo_write_mesh_case: pass the mesh text as one argument")
+    endif()
+    set(directory ${CMAKE_CURRENT_BINARY_DIR}/mesh_cases/${case})
+    file(MAKE_DIRECTORY ${directory})
+    file(WRITE ${directory}/case.scene "camera from 0 0 5 at 0 0 0\n"
+                                        "material m diffuse color 0.5 0.5 0.5\n"
+                                        "mesh x mesh.obj\n"
+                                        "instance x material m fit 2\n")
+    if(NOT "${mesh_text}" STREQUAL "")
+        file(WRITE ${directory}/mesh.obj "${mesh_text}")
+    endif()
+endfunction()
+albedo_write_mesh_case(missing "")
+albedo_write_mesh_case(malformed "v 0 0 0\nf 1 2 3\n")
+albedo_write_mesh_case(empty "v 0 0 0\nv 1 0 0\nv 0 1 0\n")
 # One face, but its corners are collinear: nothing to show.
-file(WRITE ${degenerate_mesh} "v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3\n")
+albedo_write_mesh_case(degenerate "v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3\n")
 # Two triangles whose combined extent overflows a double.
-file(WRITE ${huge_mesh} "v -1e308 0 0\nv -1e308 1 0\nv -1e308 0 1\nf 1 2 3\n"
-                        "v 1e308 0 0\nv 1e308 1 0\nv 1e308 0 1\nf 4 5 6\n")
-# A sliver with area. Scaled to fit by a transform rather than by rewriting its
-# positions, it keeps its area and renders, if invisibly thin.
-file(WRITE ${sliver_mesh} "v 0 0 0\nv 1e200 0 0\nv 0 1e-100 0\nf 1 2 3\n")
-set(sliver_image ${CMAKE_CURRENT_BINARY_DIR}/sliver.ppm)
-add_test(NAME app.removeOldSliverImage COMMAND ${CMAKE_COMMAND} -E rm -f ${sliver_image})
-add_test(NAME app.rendersASliverMesh COMMAND albedo ${sliver_image} 16 ${sliver_mesh})
-add_test(NAME app.sliverImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${sliver_image})
-set_tests_properties(app.removeOldSliverImage PROPERTIES FIXTURES_SETUP sliver_cleared)
-set_tests_properties(app.rendersASliverMesh PROPERTIES
-    FIXTURES_REQUIRED sliver_cleared
-    FIXTURES_SETUP sliver_written)
-set_tests_properties(app.sliverImageExists PROPERTIES FIXTURES_REQUIRED sliver_written)
+string(CONCAT huge_mesh_text "v -1e308 0 0\nv -1e308 1 0\nv -1e308 0 1\nf 1 2 3\n"
+                             "v 1e308 0 0\nv 1e308 1 0\nv 1e308 0 1\nf 4 5 6\n")
+albedo_write_mesh_case(huge "${huge_mesh_text}")
 # One unit wide but centred so far out that one transform cannot place it.
-set(far_mesh ${CMAKE_CURRENT_BINARY_DIR}/far_mesh.obj)
-file(WRITE ${far_mesh} "v 1.7e308 0 0\nv 1.7e308 1 0\nv 1.7e308 0 1\nf 1 2 3\n")
+albedo_write_mesh_case(far "v 1.7e308 0 0\nv 1.7e308 1 0\nv 1.7e308 0 1\nf 1 2 3\n")
+# A sliver with area. Fitted by a transform rather than by rewriting its
+# positions, it keeps its area and renders, if invisibly thin.
+albedo_write_mesh_case(sliver "v 0 0 0\nv 1e200 0 0\nv 0 1e-100 0\nf 1 2 3\n")
+albedo_add_render_test(rendersASliverMesh ${CMAKE_CURRENT_BINARY_DIR}/mesh_cases/sliver/case.scene
+    ${CMAKE_CURRENT_BINARY_DIR}/sliver.ppm 16)
 foreach(case IN ITEMS missing malformed empty degenerate huge far)
-    add_test(NAME app.failsOnMesh_${case} COMMAND albedo bad.ppm 16 ${${case}_mesh})
+    add_test(NAME app.failsOnMesh_${case}
+        COMMAND albedo ${CMAKE_CURRENT_BINARY_DIR}/mesh_cases/${case}/case.scene bad.ppm 16)
     set_tests_properties(app.failsOnMesh_${case} PROPERTIES WILL_FAIL TRUE)
 endforeach()
-add_test(NAME app.reportsMissingMesh COMMAND albedo bad.ppm 16 ${missing_mesh})
-set_tests_properties(app.reportsMissingMesh PROPERTIES PASS_REGULAR_EXPRESSION "cannot open OBJ file")
-add_test(NAME app.reportsMalformedMesh COMMAND albedo bad.ppm 16 ${malformed_mesh})
-set_tests_properties(app.reportsMalformedMesh PROPERTIES
-    PASS_REGULAR_EXPRESSION "malformed_mesh.obj: OBJ line 2")
-add_test(NAME app.reportsMeshWithoutTriangles COMMAND albedo bad.ppm 16 ${empty_mesh})
-set_tests_properties(app.reportsMeshWithoutTriangles PROPERTIES
-    PASS_REGULAR_EXPRESSION "empty_mesh.obj: the mesh has no triangles")
-add_test(NAME app.reportsMeshWithOnlyDegenerateFaces COMMAND albedo bad.ppm 16 ${degenerate_mesh})
-set_tests_properties(app.reportsMeshWithOnlyDegenerateFaces PROPERTIES
-    PASS_REGULAR_EXPRESSION "degenerate_mesh.obj: the mesh has no triangles")
-add_test(NAME app.reportsMeshTooLargeToScale COMMAND albedo bad.ppm 16 ${huge_mesh})
-set_tests_properties(app.reportsMeshTooLargeToScale PROPERTIES
-    PASS_REGULAR_EXPRESSION "huge_mesh.obj: the mesh is too large to scale into the room")
-add_test(NAME app.reportsMeshTooFarToPlace COMMAND albedo bad.ppm 16 ${far_mesh})
-set_tests_properties(app.reportsMeshTooFarToPlace PROPERTIES
-    PASS_REGULAR_EXPRESSION "far_mesh.obj: the mesh is too large or too far from the origin")
+function(albedo_add_mesh_report_test name case pattern)
+    add_test(NAME app.${name}
+        COMMAND albedo ${CMAKE_CURRENT_BINARY_DIR}/mesh_cases/${case}/case.scene bad.ppm 16)
+    set_tests_properties(app.${name} PROPERTIES PASS_REGULAR_EXPRESSION "${pattern}")
+endfunction()
+albedo_add_mesh_report_test(reportsMissingMesh missing
+    "scene line 3: mesh file 'mesh.obj' does not exist")
+albedo_add_mesh_report_test(reportsMalformedMesh malformed
+    "scene line 3: mesh 'mesh.obj': OBJ line 2")
+albedo_add_mesh_report_test(reportsMeshWithoutTriangles empty
+    "scene line 3: mesh 'mesh.obj' has no triangles")
+albedo_add_mesh_report_test(reportsMeshWithOnlyDegenerateFaces degenerate
+    "scene line 3: mesh 'mesh.obj' has no triangles")
+albedo_add_mesh_report_test(reportsMeshTooLargeToFit huge
+    "scene line 4: the instance is too large or too small to fit")
+albedo_add_mesh_report_test(reportsMeshTooFarToPlace far
+    "scene line 4: composed transform has a non-finite entry")
