@@ -2,6 +2,7 @@
 
 #include "albedo/core/vector3.hpp"
 
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <format>
@@ -31,6 +32,23 @@ Normal3r frontNormal(Point3r p0, Point3r p1, Point3r p2)
                         p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z)};
     }
     return asNormal(normalized(cross(p1 - p0, p2 - p0)));
+}
+
+std::array<Point2r, 3> validatedTextureCoordinates(const std::array<Point2r, 3>& uv)
+{
+    for (const Point2r& corner : uv) {
+        if (!std::isfinite(corner.x) || !std::isfinite(corner.y)) {
+            throw std::invalid_argument{std::format(
+                "triangle texture coordinates ({}, {}) must be finite", corner.x, corner.y)};
+        }
+    }
+    return uv;
+}
+
+// The texture coordinates at barycentric weights `b0`, `b1`, `b2` (summing to 1).
+Point2r interpolated(const std::array<Point2r, 3>& uv, Real b0, Real b1, Real b2) noexcept
+{
+    return {b0 * uv[0].x + b1 * uv[1].x + b2 * uv[2].x, b0 * uv[0].y + b1 * uv[1].y + b2 * uv[2].y};
 }
 
 Real component(Vector3r v, int axis) noexcept
@@ -105,8 +123,9 @@ Real edgeFunction(Vector3r a, Vector3r b) noexcept
 
 } // namespace
 
-Triangle::Triangle(Point3r p0, Point3r p1, Point3r p2)
-    : corners{p0, p1, p2}, front_normal{frontNormal(p0, p1, p2)}
+Triangle::Triangle(Point3r p0, Point3r p1, Point3r p2, const std::array<Point2r, 3>& uv)
+    : corners{p0, p1, p2}, front_normal{frontNormal(p0, p1, p2)},
+      corner_uv{validatedTextureCoordinates(uv)}
 {
 }
 
@@ -144,11 +163,13 @@ std::optional<ShapeHit> Triangle::intersect(const Ray& ray, Interval t_range) co
 
     // Interpolating the vertices keeps the point on the plane, which `ray.at(t)`
     // only approximates.
+    const Real b0{u / determinant};
     const Real b1{v / determinant};
     const Real b2{w / determinant};
     const Point3r point{corners[0] + (corners[1] - corners[0]) * b1 +
                         (corners[2] - corners[0]) * b2};
-    return ShapeHit{.t = t, .point = point, .normal = front_normal};
+    return ShapeHit{
+        .t = t, .point = point, .normal = front_normal, .uv = interpolated(corner_uv, b0, b1, b2)};
 }
 
 Bounds3r Triangle::bounds() const noexcept

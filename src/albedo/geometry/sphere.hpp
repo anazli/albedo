@@ -29,6 +29,9 @@ public:
     /// inside the sphere hits the far side. A ray whose direction has a zero,
     /// subnormal or non-finite squared length never hits, and neither does a sphere
     /// too small to have surface points distinct from its center in floating point.
+    /// Texture coordinates are longitude and latitude, each scaled to [0, 1]: u
+    /// runs once around the y axis, from -x through +z, +x and -z back to -x, and v
+    /// from the bottom pole (-y) to the top one (+y).
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray,
                                                     Interval t_range) const noexcept;
 

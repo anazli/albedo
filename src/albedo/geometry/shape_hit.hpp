@@ -1,6 +1,7 @@
 #pragma once
 
 #include "albedo/core/normal3.hpp"
+#include "albedo/core/point2.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
 
@@ -14,6 +15,9 @@ struct ShapeHit {
     Point3r point{};
     /// Unit normal pointing out of the shape, whichever side the ray came from.
     Normal3r normal{};
+    /// Texture coordinates of the hit position; how they map onto the surface
+    /// depends on the shape.
+    Point2r uv{};
 };
 
 } // namespace albedo

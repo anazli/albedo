@@ -444,5 +444,15 @@ TEST(SceneTest, anAreaLightIsFoundByIntersectionAndShadowRays)
     EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
 }
 
+TEST(SceneTest, hitRecordCarriesTheTextureCoordinatesOfTheShapeHit)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.25, 0.5});
+}
+
 } // namespace
 } // namespace albedo

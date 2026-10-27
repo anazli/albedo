@@ -1,8 +1,10 @@
 #include "albedo/geometry/sphere.hpp"
 
 #include "albedo/core/normal3.hpp"
+#include "albedo/core/point2.hpp"
 #include "albedo/core/vector3.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <format>
 #include <stdexcept>
@@ -74,6 +76,16 @@ std::optional<Roots> solveQuadratic(const Quadratic& quadratic) noexcept
     return Roots{.near = near, .far = far};
 }
 
+// Longitude and latitude of the unit `normal`, scaled to [0, 1] (see
+// `Sphere::intersect`). atan2 lies in [-pi, pi], so u lies in [0, 1]; the clamp
+// keeps acos defined when rounding pushes a component just past 1.
+Point2r sphericalCoordinates(Normal3r normal) noexcept
+{
+    const Real longitude{std::atan2(-normal.z, normal.x) + pi};
+    const Real latitude{std::acos(std::clamp(-normal.y, Real{-1}, Real{1}))};
+    return {longitude / (2 * pi), latitude / pi};
+}
+
 } // namespace
 
 Sphere::Sphere(Point3r center, Real radius)
@@ -122,7 +134,8 @@ std::optional<ShapeHit> Sphere::intersect(const Ray& ray, Interval t_range) cons
     }
     // Normalized rather than divided by the radius: for a small, distant sphere the
     // hit point's rounding error is large relative to the radius.
-    return ShapeHit{.t = t, .point = point, .normal = asNormal(normalized(outward))};
+    const Normal3r normal{asNormal(normalized(outward))};
+    return ShapeHit{.t = t, .point = point, .normal = normal, .uv = sphericalCoordinates(normal)};
 }
 
 Bounds3r Sphere::bounds() const noexcept
