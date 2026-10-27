@@ -3,8 +3,11 @@
 #include "albedo/core/bounds3.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
+#include "albedo/core/transform.hpp"
 #include "albedo/core/vector3.hpp"
 #include "albedo/estimator/path_estimator.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/mesh_instance.hpp"
 #include "albedo/geometry/obj.hpp"
 #include "albedo/geometry/sphere.hpp"
 #include "albedo/geometry/triangle.hpp"
@@ -16,19 +19,24 @@
 #include "albedo/material/conductor_material.hpp"
 #include "albedo/material/dielectric_material.hpp"
 #include "albedo/material/diffuse_material.hpp"
+#include "albedo/material/material.hpp"
 #include "albedo/render/render_image.hpp"
 #include "albedo/scene/scene.hpp"
+#include "albedo/texture/checker_texture.hpp"
 #include "albedo/texture/constant_texture.hpp"
+#include "albedo/texture/texture.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <format>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -50,7 +58,8 @@ constexpr albedo::Real aspect_ratio{16.0 / 9.0};
 constexpr std::string_view usage{
     "usage: albedo <output.ppm> [width] [mesh.obj]\n"
     "  width: image width in pixels, 16 to 8192 (default 960)\n"
-    "  mesh.obj: a Wavefront OBJ mesh to show in place of the glass and gold spheres\n"};
+    "  mesh.obj: a Wavefront OBJ mesh to show three times, in place of the glass and\n"
+    "            gold spheres, on a checkered floor\n"};
 
 // Parses the optional width argument. The whole string must be a base-10 integer
 // in range; anything else (signs, spaces, trailing text, overflow) is rejected.
@@ -86,15 +95,45 @@ constexpr albedo::Real room_half_width{3.0};
 constexpr albedo::Real room_height{5.0};
 constexpr albedo::Real back_wall_z{-4.0};
 
-// A room open towards the camera: white floor, ceiling and back wall, a red
-// wall on the left and a green one on the right (after the Cornell box).
-void addRoom(albedo::Scene& scene)
+// Which scene the app builds: the showcase, or the meshes scene, which shows an
+// OBJ mesh several times and adds textures.
+enum class SceneKind : std::uint8_t { Showcase, Meshes };
+
+// Floor tiles per unit of length in the meshes scene.
+constexpr albedo::Real floor_tiles_per_unit{1.25};
+
+// A flat floor of two triangles under the whole room. Its texture coordinates
+// are its x and z coordinates, so a checker texture gives square tiles.
+albedo::TriangleMesh floorQuad()
+{
+    constexpr albedo::Real x0{-room_half_width - 0.5};
+    constexpr albedo::Real x1{room_half_width + 0.5};
+    constexpr albedo::Real z0{back_wall_z - 0.5};
+    constexpr albedo::Real z1{12.0};
+    // Counter-clockwise seen from above, so the floor faces up.
+    return albedo::TriangleMesh{{{x0, 0.0, z1}, {x1, 0.0, z1}, {x1, 0.0, z0}, {x0, 0.0, z0}},
+                                {{0, 1, 2}, {0, 2, 3}},
+                                {{x0, z1}, {x1, z1}, {x1, z0}, {x0, z0}},
+                                {{0, 1, 2}, {0, 2, 3}}};
+}
+
+// A room open towards the camera: white floor (grey and white tiles in the
+// meshes scene), ceiling and back wall, a red wall on the left and a green one
+// on the right (after the Cornell box).
+void addRoom(albedo::Scene& scene, SceneKind kind)
 {
     using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
     const DiffuseMaterial white{.albedo = albedo::ConstantTexture{.color = {0.73, 0.73, 0.73}}};
-    scene.add(Sphere{Point3r{0.0, -wall_radius, 0.0}, wall_radius}, white);
+    if (kind == SceneKind::Meshes) {
+        scene.add(floorQuad(), DiffuseMaterial{.albedo = albedo::CheckerTexture{
+                                                   .even = {0.73, 0.73, 0.73},
+                                                   .odd = {0.3, 0.3, 0.3},
+                                                   .frequency = floor_tiles_per_unit}});
+    } else {
+        scene.add(Sphere{Point3r{0.0, -wall_radius, 0.0}, wall_radius}, white);
+    }
     scene.add(Sphere{Point3r{0.0, room_height + wall_radius, 0.0}, wall_radius}, white);
     scene.add(Sphere{Point3r{0.0, 0.0, back_wall_z - wall_radius}, wall_radius}, white);
     scene.add(Sphere{Point3r{-room_half_width - wall_radius, 0.0, 0.0}, wall_radius},
@@ -114,13 +153,23 @@ void addCentralSpheres(albedo::Scene& scene)
               albedo::ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.25});
 }
 
+// The blue sphere's surface: plain in the showcase, and in the meshes scene
+// checkered in latitude and longitude, which shows the sphere's texture coordinates.
+albedo::Texture blueSphereTexture(SceneKind kind)
+{
+    constexpr albedo::Rgb blue{0.15, 0.3, 0.7};
+    if (kind == SceneKind::Meshes) {
+        return albedo::CheckerTexture{.even = blue, .odd = {0.8, 0.8, 0.8}, .frequency = 8.0};
+    }
+    return albedo::ConstantTexture{.color = blue};
+}
+
 // Smaller spheres around the edges: a silver mirror, frosted glass, rough
 // copper and matte blue.
-void addOuterSpheres(albedo::Scene& scene)
+void addOuterSpheres(albedo::Scene& scene, SceneKind kind)
 {
     using albedo::ConductorMaterial;
     using albedo::DielectricMaterial;
-    using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
     scene.add(Sphere{Point3r{-1.9, 0.6, 1.3}, 0.6},
@@ -130,7 +179,7 @@ void addOuterSpheres(albedo::Scene& scene)
     scene.add(Sphere{Point3r{0.9, 0.35, 2.3}, 0.35},
               ConductorMaterial{.eta = copper_eta, .k = copper_k, .roughness = 0.3});
     scene.add(Sphere{Point3r{-2.2, 0.5, -2.8}, 0.5},
-              DiffuseMaterial{.albedo = albedo::ConstantTexture{.color = {0.15, 0.3, 0.7}}});
+              albedo::DiffuseMaterial{.albedo = blueSphereTexture(kind)});
 }
 
 // A warm light set into the ceiling with only its lowest part showing below it
@@ -145,93 +194,154 @@ void addLights(albedo::Scene& scene)
     scene.setSky(albedo::SkyLight::uniform({0.05, 0.06, 0.08}));
 }
 
-// Where a mesh goes: the middle of the room, clear of the outer spheres, with
-// its longest side this long.
-constexpr albedo::Point3r mesh_center{0.3, 1.55, -1.4};
-constexpr albedo::Real mesh_size{3.0};
+// Where one copy of the mesh goes: scaled so the box around it has its longest
+// side `size` long, turned by `degrees` about `axis`, and standing on the floor
+// with the box centred over (`x`, `z`).
+struct MeshPlacement {
+    albedo::Real x{};
+    albedo::Real z{};
+    albedo::Real size{};
+    albedo::Vector3r axis{0.0, 1.0, 0.0};
+    albedo::Real degrees{};
+    albedo::Material material;
+};
 
-// `mesh` without faces that lack area and without positions no remaining face
-// uses, so its positions span exactly what can be seen.
-albedo::TriangleMesh visiblePart(const albedo::TriangleMesh& mesh)
+// The three copies of the mesh in the meshes scene: rough gold at the back,
+// clear glass at the front left and rough copper on the right, each turned
+// differently, leaving the checkered blue sphere in view.
+std::vector<MeshPlacement> meshPlacements()
 {
-    constexpr std::size_t unused{std::numeric_limits<std::size_t>::max()};
-    const std::span<const albedo::Point3r> all_positions{mesh.positions()};
-    std::vector<std::size_t> new_index(all_positions.size(), unused);
-    std::vector<albedo::Point3r> positions;
-    std::vector<albedo::TriangleMesh::Face> faces;
-    for (const albedo::TriangleMesh::Face& face : mesh.faces()) {
-        if (!albedo::formsTriangle(all_positions[face.at(0)], all_positions[face.at(1)],
-                                   all_positions[face.at(2)])) {
-            continue;
-        }
-        albedo::TriangleMesh::Face renumbered{};
-        for (std::size_t corner{0}; corner < renumbered.size(); ++corner) {
-            std::size_t& index{new_index[face.at(corner)]};
-            if (index == unused) {
-                index = positions.size();
-                positions.push_back(all_positions[face.at(corner)]);
-            }
-            renumbered.at(corner) = index;
-        }
-        faces.push_back(renumbered);
-    }
-    return albedo::TriangleMesh{std::move(positions), std::move(faces)};
+    return {
+        {.x = 0.1,
+         .z = -2.3,
+         .size = 2.6,
+         .axis = {0.0, 1.0, 0.0},
+         .degrees = 20.0,
+         .material = albedo::ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.15}},
+        {.x = -0.75,
+         .z = 0.35,
+         .size = 1.3,
+         .axis = {1.0, 0.0, 0.0},
+         .degrees = 70.0,
+         .material = albedo::DielectricMaterial{.ior = 1.5, .roughness = 0.0}},
+        {.x = 1.45,
+         .z = -0.7,
+         .size = 1.3,
+         .axis = {0.3, 0.2, 1.0},
+         .degrees = -40.0,
+         .material =
+             albedo::ConductorMaterial{.eta = copper_eta, .k = copper_k, .roughness = 0.3}}};
 }
 
-// The visible part of the mesh at `path`, scaled uniformly and moved so the box
-// around it is centred on `center` with its longest side `size` long. Throws
-// `std::runtime_error` naming the file if it cannot be read or has nothing to show.
-albedo::TriangleMesh fittedMesh(const std::filesystem::path& path, albedo::Point3r center,
-                                albedo::Real size)
+// A mesh read from a file: its shared geometry, and the corners of every
+// triangle it keeps, for finding where a placement puts its lowest point.
+struct LoadedMesh {
+    std::shared_ptr<const albedo::MeshGeometry> geometry;
+    std::vector<albedo::Point3r> corners;
+};
+
+// The mesh in the OBJ file at `path`. `fail` makes the error to throw, naming
+// the file.
+template <typename Fail>
+LoadedMesh loadMesh(const std::filesystem::path& path, const Fail& fail)
 {
-    const auto fail{[&](std::string_view problem) {
-        return std::runtime_error{std::format("{}: {}", path.string(), problem)};
-    }};
     std::optional<albedo::TriangleMesh> mesh;
     try {
-        mesh = visiblePart(albedo::readObj(path));
+        mesh = albedo::readObj(path);
     } catch (const albedo::ObjParseError& error) {
         throw fail(error.what());
     }
-    if (mesh->faces().empty()) {
+    // Checked here, so MeshGeometry's own invalid_argument is not mistaken for it.
+    const std::vector<albedo::Triangle> triangles{mesh->triangles()};
+    if (triangles.empty()) {
         throw fail("the mesh has no triangles");
     }
-    albedo::Bounds3r box;
-    for (const albedo::Point3r& position : mesh->positions()) {
-        box = merged(box, position);
+    std::vector<albedo::Point3r> corners;
+    corners.reserve(3 * triangles.size());
+    for (const albedo::Triangle& triangle : triangles) {
+        corners.insert(corners.end(), triangle.vertices().begin(), triangle.vertices().end());
     }
+    return {.geometry = std::make_shared<const albedo::MeshGeometry>(*mesh),
+            .corners = std::move(corners)};
+}
+
+// The lowest height `transform` puts any of `corners` at: +infinity if
+// `corners` is empty or every height is NaN, and -infinity if one overflows.
+albedo::Real lowestHeight(const albedo::Transform& transform,
+                          std::span<const albedo::Point3r> corners) noexcept
+{
+    albedo::Real lowest{std::numeric_limits<albedo::Real>::infinity()};
+    for (const albedo::Point3r& corner : corners) {
+        lowest = std::min(lowest, transform.apply(corner).y);
+    }
+    return lowest;
+}
+
+// `mesh` scaled uniformly, turned and stood on the floor as `placement` says.
+// `fail` makes the error to throw, naming the file, when it cannot be placed.
+template <typename Fail>
+albedo::MeshInstance fittedInstance(const LoadedMesh& mesh, const MeshPlacement& placement,
+                                    const Fail& fail)
+{
+    const albedo::Bounds3r box{mesh.geometry->bounds()};
     const albedo::Vector3r extent{box.extent()};
-    const albedo::Real scale{size / std::max({extent.x, extent.y, extent.z})};
+    const albedo::Real scale{placement.size / std::max({extent.x, extent.y, extent.z})};
     if (!std::isfinite(scale) || !(scale > 0)) {
         throw fail("the mesh is too large to scale into the room");
     }
     // Halved before adding, so huge coordinates cannot overflow.
-    const albedo::Point3r box_center{box.min.x / 2 + box.max.x / 2, box.min.y / 2 + box.max.y / 2,
-                                     box.min.z / 2 + box.max.z / 2};
-    std::vector<albedo::Point3r> positions;
-    positions.reserve(mesh->positions().size());
-    for (const albedo::Point3r& position : mesh->positions()) {
-        positions.push_back(center + (position - box_center) * scale);
+    const albedo::Vector3r box_center{box.min.x / 2 + box.max.x / 2, box.min.y / 2 + box.max.y / 2,
+                                      box.min.z / 2 + box.max.z / 2};
+    // One affine map holds the whole placement, so a mesh centred far enough from
+    // the origin overflows it even when the placed mesh itself would fit.
+    const auto unplaceable{[&] {
+        return fail("the mesh is too large or too far from the origin to place in the room");
+    }};
+    try {
+        const albedo::Transform turned{
+            albedo::Transform::rotation(placement.axis, placement.degrees) *
+            albedo::Transform::scaling({scale, scale, scale}) *
+            albedo::Transform::translation(-box_center)};
+        // Lifted so the turned mesh's lowest corner touches the floor; its bounding
+        // box would reach lower than the mesh once turned.
+        const albedo::Real lift{-lowestHeight(turned, mesh.corners)};
+        if (!std::isfinite(lift)) {
+            throw unplaceable();
+        }
+        const albedo::Transform to_room{
+            albedo::Transform::translation({placement.x, lift, placement.z}) * turned};
+        return albedo::MeshInstance{mesh.geometry, to_room};
+    } catch (const std::invalid_argument&) {
+        throw unplaceable();
     }
-    albedo::TriangleMesh fitted{std::move(positions), {mesh->faces().begin(), mesh->faces().end()}};
-    if (fitted.triangles().empty()) {
-        throw fail("no triangle of the mesh keeps an area once scaled");
-    }
-    return fitted;
 }
 
-// The showcase room; a mesh, when given, replaces the two central spheres.
+// Adds the copies of the mesh at `path`, which share one geometry. Throws
+// `std::runtime_error` naming the file if it cannot be read or has nothing to show.
+void addMeshes(albedo::Scene& scene, const std::filesystem::path& path)
+{
+    const auto fail{[&](std::string_view problem) {
+        return std::runtime_error{std::format("{}: {}", path.string(), problem)};
+    }};
+    const LoadedMesh mesh{loadMesh(path, fail)};
+    for (const MeshPlacement& placement : meshPlacements()) {
+        scene.add(fittedInstance(mesh, placement, fail), placement.material);
+    }
+}
+
+// The showcase room; with a mesh, the meshes scene, whose copies of the mesh
+// replace the two central spheres.
 albedo::Scene buildScene(const std::optional<std::filesystem::path>& mesh_path)
 {
+    const SceneKind kind{mesh_path ? SceneKind::Meshes : SceneKind::Showcase};
     albedo::Scene scene;
-    addRoom(scene);
+    addRoom(scene, kind);
     if (mesh_path) {
-        scene.add(fittedMesh(*mesh_path, mesh_center, mesh_size),
-                  albedo::ConductorMaterial{.eta = gold_eta, .k = gold_k, .roughness = 0.15});
+        addMeshes(scene, *mesh_path);
     } else {
         addCentralSpheres(scene);
     }
-    addOuterSpheres(scene);
+    addOuterSpheres(scene, kind);
     addLights(scene);
     return scene;
 }
