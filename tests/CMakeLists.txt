@@ -24,6 +24,7 @@ add_executable(albedo_tests
     core/point3_test.cpp
     core/ray_test.cpp
     core/real_test.cpp
+    core/transform_test.cpp
     core/vector3_test.cpp
     estimator/normals_estimator_test.cpp
     estimator/path_estimator_test.cpp

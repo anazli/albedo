@@ -5,6 +5,7 @@ target_sources(albedo_core
         albedo/camera/perspective_camera.cpp
         albedo/color/srgb.cpp
         albedo/core/orthonormal_basis.cpp
+        albedo/core/transform.cpp
         albedo/estimator/normals_estimator.cpp
         albedo/estimator/path_estimator.cpp
         albedo/estimator/scatter_only_estimator.cpp
@@ -47,6 +48,7 @@ target_sources(albedo_core
             albedo/core/point3.hpp
             albedo/core/ray.hpp
             albedo/core/real.hpp
+            albedo/core/transform.hpp
             albedo/core/vector3.hpp
             albedo/estimator/normals_estimator.hpp
             albedo/estimator/path_estimator.hpp
@@ -94,8 +96,10 @@ target_sources(albedo_core
 target_compile_features(albedo_core PUBLIC cxx_std_20)
 # The watertight triangle test needs each product in its edge functions rounded
 # separately; fusing them into an FMA breaks the exact antisymmetry between
-# triangles sharing an edge. MSVC's default /fp:precise does not contract.
-set_source_files_properties(albedo/geometry/triangle.cpp PROPERTIES
+# triangles sharing an edge. Transformed bounds rely on rounding exactly as a
+# transformed point does, which contraction in only one of them would break.
+# MSVC's default /fp:precise does not contract.
+set_source_files_properties(albedo/geometry/triangle.cpp albedo/core/transform.cpp PROPERTIES
     COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-ffp-contract=off>")
 find_package(Threads REQUIRED)
 target_link_libraries(albedo_core PRIVATE Threads::Threads)
