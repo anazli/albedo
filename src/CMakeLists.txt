@@ -17,6 +17,8 @@ target_sources(albedo_core
         albedo/geometry/triangle_mesh.cpp
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
+        albedo/io/line_reader.cpp
+        albedo/io/tokens.cpp
         albedo/light/area_light.cpp
         albedo/light/point_light.cpp
         albedo/light/sky_light.cpp
@@ -67,6 +69,8 @@ target_sources(albedo_core
             albedo/geometry/triangle_mesh.hpp
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
+            albedo/io/line_reader.hpp
+            albedo/io/tokens.hpp
             albedo/light/area_light.hpp
             albedo/light/light.hpp
             albedo/light/light_sample.hpp

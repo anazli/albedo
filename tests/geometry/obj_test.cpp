@@ -1,13 +1,16 @@
 #include "albedo/geometry/obj.hpp"
 
 #include "support/expect_near.hpp"
+#include "support/failing_streambuf.hpp"
 #include "support/temporary_file.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <istream>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -19,6 +22,7 @@ namespace {
 
 using test_support::exact_tolerance;
 using test_support::expectNear;
+using test_support::FailingStreambuf;
 using test_support::TemporaryFile;
 
 TriangleMesh readObjText(std::string_view text, const ObjLimits& limits = {})
@@ -253,6 +257,49 @@ TEST(ObjTest, rejectsLinesOverTheLengthLimit)
     EXPECT_EQ(errorLine("v 0 0 0\nv 0.000000001 0 0\n", short_lines), 2U);
     EXPECT_EQ(errorLine("v 0 0 0\nv 0.000000001 0 0", short_lines), 2U);
     EXPECT_EQ(errorLine("v 0 0 0\nv 0.000000001 0 0\r\n", short_lines), 2U);
+}
+
+// The message of the exception `read` throws, or empty if it throws none.
+template <typename Read>
+std::string messageOf(Read read)
+{
+    try {
+        static_cast<void>(read());
+    } catch (const std::exception& error) {
+        return error.what();
+    }
+    return {};
+}
+
+TEST(ObjTest, overlongLineErrorNamesTheLineAndLimit)
+{
+    EXPECT_EQ(messageOf([] { return readObjText("v 0 0 0\nv 0.000000001 0 0\n", short_lines); }),
+              "OBJ line 2: line longer than 16 bytes");
+}
+
+TEST(ObjTest, failedStreamErrorSaysTheInputIsNotReadable)
+{
+    std::istringstream input{std::string{one_triangle}};
+    input.setstate(std::ios::failbit);
+
+    EXPECT_EQ(messageOf([&] { return readObj(input); }), "OBJ input stream is not readable");
+}
+
+TEST(ObjTest, unusableLineLimitErrorSaysSo)
+{
+    std::istringstream input{std::string{one_triangle}};
+    const ObjLimits limits{.max_line_length = std::numeric_limits<std::size_t>::max()};
+
+    EXPECT_EQ(messageOf([&] { return readObj(input, limits); }),
+              "OBJ line length limit is too large");
+}
+
+TEST(ObjTest, readFailureIsReported)
+{
+    FailingStreambuf buffer{"v 0 0 0\n"};
+    std::istream input{&buffer};
+
+    EXPECT_EQ(messageOf([&] { return readObj(input); }), "failed to read OBJ input");
 }
 
 TEST(ObjTest, rejectsALineLengthLimitTooLargeToBuffer)

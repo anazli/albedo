@@ -3,81 +3,22 @@
 #include "albedo/core/point2.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
+#include "albedo/io/line_reader.hpp"
+#include "albedo/io/tokens.hpp"
 
-#include <algorithm>
 #include <array>
-#include <charconv>
-#include <cmath>
 #include <cstddef>
 #include <format>
 #include <fstream>
-#include <istream>
-#include <limits>
 #include <optional>
 #include <stdexcept>
-#include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <vector>
 
 namespace albedo {
 
 namespace {
-
-// The words of a line, split at spaces and tabs.
-class Tokens {
-public:
-    explicit Tokens(std::string_view line) noexcept : rest{line} {}
-
-    // The next word, if any.
-    [[nodiscard]] std::optional<std::string_view> next() noexcept
-    {
-        constexpr std::string_view whitespace{" \t\r\v\f"};
-        const std::size_t start{rest.find_first_not_of(whitespace)};
-        if (start == std::string_view::npos) {
-            rest = {};
-            return std::nullopt;
-        }
-        rest.remove_prefix(start);
-        const std::size_t end{std::min(rest.find_first_of(whitespace), rest.size())};
-        const std::string_view token{rest.substr(0, end)};
-        rest.remove_prefix(end);
-        return token;
-    }
-
-private:
-    std::string_view rest;
-};
-
-// A whole token as a finite number, or nothing. A leading '+' is allowed, which
-// std::from_chars itself rejects.
-std::optional<Real> parseCoordinate(std::string_view token) noexcept
-{
-    if (token.starts_with('+')) {
-        token.remove_prefix(1);
-        if (token.starts_with('+') || token.starts_with('-')) {
-            return std::nullopt;
-        }
-    }
-    Real value{};
-    const auto [end, error]{std::from_chars(token.data(), token.data() + token.size(), value)};
-    if (error != std::errc{} || end != token.data() + token.size() || !std::isfinite(value)) {
-        return std::nullopt;
-    }
-    return value;
-}
-
-// A whole token as a signed decimal integer, or nothing (also when out of range).
-std::optional<long long> parseInteger(std::string_view token) noexcept
-{
-    long long value{};
-    const auto [end, error]{std::from_chars(token.data(), token.data() + token.size(), value)};
-    if (error != std::errc{} || end != token.data() + token.size() || token.empty()) {
-        return std::nullopt;
-    }
-    return value;
-}
 
 // One face corner: indices into the positions and, if given, the texture coordinates.
 struct Corner {
@@ -112,13 +53,6 @@ public:
         } else if (keyword == "f") {
             readFace(tokens);
         }
-    }
-
-    // Reports a line too long to read.
-    [[noreturn]] void failOverlongLine() const
-    {
-        throw ObjParseError{line_number + 1,
-                            std::format("line longer than {} bytes", limits.max_line_length)};
     }
 
     [[nodiscard]] TriangleMesh finish() &&
@@ -179,7 +113,7 @@ private:
 
     [[nodiscard]] Real coordinateFrom(std::string_view token) const
     {
-        const auto value{parseCoordinate(token)};
+        const auto value{parseReal(token)};
         if (!value) {
             fail("a coordinate is not a finite number");
         }
@@ -295,20 +229,6 @@ private:
     std::vector<Corner> corners;
 };
 
-// Rejects a stream that cannot be read and a line limit too large to buffer.
-void checkReadable(const std::istream& input, const ObjLimits& limits)
-{
-    if (input.fail()) {
-        throw std::runtime_error{"OBJ input stream is not readable"};
-    }
-    // The buffer adds two bytes, and its size must fit std::streamsize.
-    constexpr auto largest_buffer{
-        static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())};
-    if (limits.max_line_length > largest_buffer - 2) {
-        throw std::invalid_argument{"OBJ line length limit is too large"};
-    }
-}
-
 } // namespace
 
 ObjParseError::ObjParseError(std::size_t line, std::string_view problem)
@@ -318,37 +238,14 @@ ObjParseError::ObjParseError(std::size_t line, std::string_view problem)
 
 TriangleMesh readObj(std::istream& input, const ObjLimits& limits)
 {
-    checkReadable(input, limits);
+    LineReader lines{input, limits.max_line_length, "OBJ"};
     ObjReader reader{limits};
-    // One byte more than the limit for a '\r' before the '\n', and one for the
-    // terminating null that getline writes.
-    std::vector<char> buffer(limits.max_line_length + 2);
-    const auto capacity{static_cast<std::streamsize>(buffer.size())};
-    while (true) {
-        input.getline(buffer.data(), capacity);
-        if (input.bad()) {
-            throw std::runtime_error{"failed to read OBJ input"};
+    try {
+        while (const auto line{lines.next()}) {
+            reader.readLine(*line);
         }
-        const std::streamsize extracted{input.gcount()};
-        if (input.fail()) {
-            if (input.eof() && extracted == 0) {
-                break;
-            }
-            // getline stops with failbit set, but not eofbit, when the buffer fills.
-            reader.failOverlongLine();
-        }
-        // The count includes the '\n' unless the input ended without one.
-        auto length{static_cast<std::size_t>(input.eof() ? extracted : extracted - 1)};
-        if (length > 0 && buffer[length - 1] == '\r') {
-            --length;
-        }
-        if (length > limits.max_line_length) {
-            reader.failOverlongLine();
-        }
-        reader.readLine({buffer.data(), length});
-        if (input.eof()) {
-            break;
-        }
+    } catch (const LineTooLongError& error) {
+        throw ObjParseError{error.line(), std::format("line longer than {} bytes", error.limit())};
     }
     return std::move(reader).finish();
 }
