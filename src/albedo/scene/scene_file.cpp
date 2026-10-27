@@ -999,6 +999,17 @@ SceneDescription readScene(std::istream& input, const SceneLimits& limits)
 
 SceneDescription readScene(const std::filesystem::path& path, const SceneLimits& limits)
 {
+    // Checked first: some platforms open a directory as a stream whose reads
+    // then fail, which would give an error without the path.
+    std::error_code error;
+    const std::filesystem::file_type type{std::filesystem::status(path, error).type()};
+    // A failed lookup (such as a directory without search permission) falls
+    // through to the open, which reports it.
+    if (!error && type != std::filesystem::file_type::not_found &&
+        type != std::filesystem::file_type::regular) {
+        throw std::runtime_error{
+            std::format("scene file '{}' is not a regular file", pathText(path))};
+    }
     std::ifstream file{path, std::ios::binary};
     if (!file) {
         throw std::runtime_error{std::format("cannot open scene file '{}'", pathText(path))};

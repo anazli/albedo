@@ -35,6 +35,7 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 | Texture | `Texture` variant: `ConstantTexture`, `CheckerTexture` | `evaluate(hit)` |
 | Affine map | `Transform` (with its inverse) | `translation`, `scaling`, `rotation`, `*`, `inverse`, `apply` |
 | Shared mesh | `MeshGeometry` (triangles + BVH), placed by `MeshInstance` | `intersect`, `bounds` |
+| Scene file | `SceneDescription` (scene + camera), within `SceneLimits` | `readScene(path)`, `readScene(stream, base_directory)` |
 
 ## Steps
 
@@ -48,6 +49,6 @@ The design draws on the literature: *Ray Tracing in One Weekend* (Shirley et al.
 - [x] 7. `PointLight`, `AreaLight`, `PathEstimator` (next-event estimation, MIS, Russian roulette), producing `scenes/step-07-path-tracing.png` *(completed 2026-10-22)*
 - [x] 8. `Triangle`, `TriangleMesh`, BVH (SAH build), OBJ loader *(security-relevant: input parsing)*, producing `scenes/step-08-meshes.png` *(completed 2026-10-25)*
 - [x] 9. Textures and `Transform`-based instancing, producing `scenes/step-09-textures-instancing.png` *(completed 2026-10-27)*
-- [ ] 10. Text scene format and parser *(security-relevant: input parsing)*
+- [x] 10. Text scene format and parser *(security-relevant: input parsing)*; the app renders scene files such as `assets/showcase.scene` *(completed 2026-10-27)*
 
 Later options: better samplers, reconstruction filters, environment maps, PNG output, volumes.

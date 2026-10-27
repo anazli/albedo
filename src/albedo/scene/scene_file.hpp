@@ -133,7 +133,8 @@ struct SceneDescription {
 
 /// Reads the scene file at `path` as `readScene(std::istream&, ...)` does, finding
 /// meshes in the file's own directory. Throws as that does, and
-/// `std::runtime_error` naming the path if the file cannot be opened.
+/// `std::runtime_error` naming the path if it is not a regular file or cannot be
+/// opened.
 [[nodiscard]] SceneDescription readScene(const std::filesystem::path& path,
                                          const SceneLimits& limits = {});
 

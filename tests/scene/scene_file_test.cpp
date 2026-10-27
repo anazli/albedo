@@ -600,6 +600,24 @@ TEST(SceneFileTest, readsAFile)
     EXPECT_EQ(description.scene.lights().size(), 1U);
 }
 
+TEST(SceneFileTest, directoryInsteadOfAFileThrowsNamingThePath)
+{
+    const TemporaryDirectory directory{"albedo_scene_file_test_directory_as_scene"};
+
+    try {
+        static_cast<void>(readScene(directory.path()));
+        FAIL() << "expected std::runtime_error";
+    } catch (const SceneParseError&) {
+        FAIL() << "a directory is not a parse error";
+    } catch (const std::runtime_error& error) {
+        EXPECT_NE(std::string_view{error.what()}.find("albedo_scene_file_test_directory_as_scene"),
+                  std::string_view::npos)
+            << error.what();
+        EXPECT_NE(std::string_view{error.what()}.find("not a regular file"), std::string_view::npos)
+            << error.what();
+    }
+}
+
 TEST(SceneFileTest, missingFileThrowsNamingThePath)
 {
     try {
