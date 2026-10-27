@@ -62,7 +62,8 @@ public:
 
     /// The nearest hit with `t` strictly inside `t_range`, if any. The record's
     /// normal faces against the ray. Throws `std::bad_variant_access` only if a
-    /// stored shape is valueless (see `intersect(const Shape&, ...)`).
+    /// stored shape is valueless (see `intersect(const Shape&, ...)`), or
+    /// `std::out_of_range` if a hierarchy's depth bound is violated (see `Bvh`).
     [[nodiscard]] std::optional<HitRecord> intersect(const Ray& ray, Interval t_range) const;
 
     /// How light scatters at `hit`, from the material of the object hit.

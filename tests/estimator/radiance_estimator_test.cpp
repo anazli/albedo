@@ -45,7 +45,8 @@ TEST(RadianceEstimatorTest, estimatorVariantRejectsNonEstimatorAlternatives)
 TEST(RadianceEstimatorTest, forwardsToNormalsEstimator)
 {
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}});
     SampleGenerator generator{testGenerator()};
 
     expectNear(radiance(RadianceEstimator{NormalsEstimator{}}, down_minus_z, scene, generator),
@@ -56,7 +57,8 @@ TEST(RadianceEstimatorTest, forwardsToScatterOnlyEstimatorWithItsSettings)
 {
     // With no scattering allowed, a hit is black; the default limit would give the sky.
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, DiffuseMaterial{.albedo = {1.0, 1.0, 1.0}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {1.0, 1.0, 1.0}}});
     scene.setSky(SkyLight::uniform({1.0, 1.0, 1.0}));
     SampleGenerator generator{testGenerator()};
     const RadianceEstimator estimator{ScatterOnlyEstimator{.max_scatter_count = 0}};

@@ -2,6 +2,7 @@
 
 #include "albedo/core/bounds3.hpp"
 #include "albedo/core/interval.hpp"
+#include "albedo/core/point2.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/ray.hpp"
 #include "albedo/core/real.hpp"
@@ -29,8 +30,16 @@ public:
     /// inside the sphere hits the far side. A ray whose direction has a zero,
     /// subnormal or non-finite squared length never hits, and neither does a sphere
     /// too small to have surface points distinct from its center in floating point.
+    /// The hit's `uv` is not filled in; see `textureCoordinatesAt`.
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray,
                                                     Interval t_range) const noexcept;
+
+    /// Texture coordinates of `hit`: longitude and latitude, each scaled to
+    /// [0, 1]. u runs once around the y axis, from -x through +z, +x and -z back to
+    /// -x, and v from the bottom pole (-y) to the top one (+y). Computed on request
+    /// because the trigonometry costs more than the intersection itself.
+    /// Precondition: `hit` came from `intersect` on a sphere (its normal has unit length).
+    [[nodiscard]] static Point2r textureCoordinatesAt(const ShapeHit& hit) noexcept;
 
     /// The axis-aligned box enclosing the sphere.
     [[nodiscard]] Bounds3r bounds() const noexcept;

@@ -1,8 +1,11 @@
 #include "albedo/geometry/sphere.hpp"
 
 #include "albedo/core/normal3.hpp"
+#include "albedo/core/point2.hpp"
 #include "albedo/core/vector3.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <format>
 #include <stdexcept>
@@ -11,6 +14,11 @@
 namespace albedo {
 
 namespace {
+
+// How far a unit normal's squared length may stray from 1, as in
+// orthonormal_basis.cpp: loose enough for normals of tiny, distant spheres,
+// whose normalization loses precision.
+constexpr Real unit_length_tolerance{1e-6};
 
 // The intersection math squares the radius, so the square must be a normal
 // number too: otherwise it overflows to infinity or underflows to zero and every
@@ -123,6 +131,18 @@ std::optional<ShapeHit> Sphere::intersect(const Ray& ray, Interval t_range) cons
     // Normalized rather than divided by the radius: for a small, distant sphere the
     // hit point's rounding error is large relative to the radius.
     return ShapeHit{.t = t, .point = point, .normal = asNormal(normalized(outward))};
+}
+
+Point2r Sphere::textureCoordinatesAt(const ShapeHit& hit) noexcept
+{
+    // atan2 lies in [-pi, pi], so u lies in [0, 1]; the clamp keeps acos defined
+    // when rounding pushes a component just past 1.
+    const Normal3r normal{hit.normal};
+    assert(std::abs(lengthSquared(asVector(normal)) - 1) < unit_length_tolerance &&
+           "sphere texture coordinates need the unit normal of a sphere hit");
+    const Real longitude{std::atan2(-normal.z, normal.x) + pi};
+    const Real latitude{std::acos(std::clamp(-normal.y, Real{-1}, Real{1}))};
+    return {longitude / (2 * pi), latitude / pi};
 }
 
 Bounds3r Sphere::bounds() const noexcept

@@ -24,12 +24,15 @@ add_executable(albedo_tests
     core/point3_test.cpp
     core/ray_test.cpp
     core/real_test.cpp
+    core/transform_test.cpp
     core/vector3_test.cpp
     estimator/normals_estimator_test.cpp
     estimator/path_estimator_test.cpp
     estimator/radiance_estimator_test.cpp
     estimator/scatter_only_estimator_test.cpp
     estimator/surface_ray_test.cpp
+    geometry/mesh_geometry_test.cpp
+    geometry/mesh_instance_test.cpp
     geometry/shape_test.cpp
     geometry/obj_test.cpp
     geometry/sphere_test.cpp
@@ -56,6 +59,9 @@ add_executable(albedo_tests
     scattering/scattering_test.cpp
     scattering/specular_test.cpp
     scene/scene_test.cpp
+    texture/checker_texture_test.cpp
+    texture/constant_texture_test.cpp
+    texture/texture_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(albedo_tests PRIVATE albedo_core GTest::gtest_main)
@@ -134,9 +140,22 @@ file(WRITE ${degenerate_mesh} "v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3\n")
 # Two triangles whose combined extent overflows a double.
 file(WRITE ${huge_mesh} "v -1e308 0 0\nv -1e308 1 0\nv -1e308 0 1\nf 1 2 3\n"
                         "v 1e308 0 0\nv 1e308 1 0\nv 1e308 0 1\nf 4 5 6\n")
-# A sliver with area, which scaling to fit squashes flat.
+# A sliver with area. Scaled to fit by a transform rather than by rewriting its
+# positions, it keeps its area and renders, if invisibly thin.
 file(WRITE ${sliver_mesh} "v 0 0 0\nv 1e200 0 0\nv 0 1e-100 0\nf 1 2 3\n")
-foreach(case IN ITEMS missing malformed empty degenerate huge sliver)
+set(sliver_image ${CMAKE_CURRENT_BINARY_DIR}/sliver.ppm)
+add_test(NAME app.removeOldSliverImage COMMAND ${CMAKE_COMMAND} -E rm -f ${sliver_image})
+add_test(NAME app.rendersASliverMesh COMMAND albedo ${sliver_image} 16 ${sliver_mesh})
+add_test(NAME app.sliverImageExists COMMAND ${CMAKE_COMMAND} -E md5sum ${sliver_image})
+set_tests_properties(app.removeOldSliverImage PROPERTIES FIXTURES_SETUP sliver_cleared)
+set_tests_properties(app.rendersASliverMesh PROPERTIES
+    FIXTURES_REQUIRED sliver_cleared
+    FIXTURES_SETUP sliver_written)
+set_tests_properties(app.sliverImageExists PROPERTIES FIXTURES_REQUIRED sliver_written)
+# One unit wide but centred so far out that one transform cannot place it.
+set(far_mesh ${CMAKE_CURRENT_BINARY_DIR}/far_mesh.obj)
+file(WRITE ${far_mesh} "v 1.7e308 0 0\nv 1.7e308 1 0\nv 1.7e308 0 1\nf 1 2 3\n")
+foreach(case IN ITEMS missing malformed empty degenerate huge far)
     add_test(NAME app.failsOnMesh_${case} COMMAND albedo bad.ppm 16 ${${case}_mesh})
     set_tests_properties(app.failsOnMesh_${case} PROPERTIES WILL_FAIL TRUE)
 endforeach()
@@ -154,6 +173,6 @@ set_tests_properties(app.reportsMeshWithOnlyDegenerateFaces PROPERTIES
 add_test(NAME app.reportsMeshTooLargeToScale COMMAND albedo bad.ppm 16 ${huge_mesh})
 set_tests_properties(app.reportsMeshTooLargeToScale PROPERTIES
     PASS_REGULAR_EXPRESSION "huge_mesh.obj: the mesh is too large to scale into the room")
-add_test(NAME app.reportsMeshFlattenedByScaling COMMAND albedo bad.ppm 16 ${sliver_mesh})
-set_tests_properties(app.reportsMeshFlattenedByScaling PROPERTIES
-    PASS_REGULAR_EXPRESSION "sliver_mesh.obj: no triangle of the mesh keeps an area once scaled")
+add_test(NAME app.reportsMeshTooFarToPlace COMMAND albedo bad.ppm 16 ${far_mesh})
+set_tests_properties(app.reportsMeshTooFarToPlace PROPERTIES
+    PASS_REGULAR_EXPRESSION "far_mesh.obj: the mesh is too large or too far from the origin")

@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <limits>
 #include <stdexcept>
 
@@ -12,6 +13,7 @@ namespace albedo {
 namespace {
 
 using test_support::default_tolerance;
+using test_support::exact_tolerance;
 using test_support::expectNear;
 using test_support::requireValue;
 
@@ -251,6 +253,81 @@ TEST(SphereTest, boundsEncloseTheSphere)
 
     expectNear(box.min, Point3r{-1.0, -1.0, -6.0});
     expectNear(box.max, Point3r{1.0, 1.0, -4.0});
+}
+
+TEST(SphereTest, textureCoordinatesFollowLongitudeAndLatitude)
+{
+    // u runs around the y axis starting at -x, v from the bottom pole to the top.
+    const Ray towards_front{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+    const Ray towards_right_side{.origin = {5.0, 0.0, -5.0}, .direction = {-1.0, 0.0, 0.0}};
+    const Ray towards_back{.origin = {0.0, 0.0, -10.0}, .direction = {0.0, 0.0, 1.0}};
+
+    const ShapeHit front{requireValue(unitSphere().intersect(towards_front, positive_t))};
+    const ShapeHit right_side{requireValue(unitSphere().intersect(towards_right_side, positive_t))};
+    const ShapeHit back{requireValue(unitSphere().intersect(towards_back, positive_t))};
+
+    expectNear(Sphere::textureCoordinatesAt(front), Point2r{0.25, 0.5});
+    expectNear(Sphere::textureCoordinatesAt(right_side), Point2r{0.5, 0.5});
+    expectNear(Sphere::textureCoordinatesAt(back), Point2r{0.75, 0.5});
+}
+
+TEST(SphereTest, textureCoordinateVRunsFromBottomToTopPole)
+{
+    const Ray down_onto_top{.origin = {0.0, 5.0, -5.0}, .direction = {0.0, -1.0, 0.0}};
+    const Ray up_onto_bottom{.origin = {0.0, -5.0, -5.0}, .direction = {0.0, 1.0, 0.0}};
+
+    const ShapeHit top{requireValue(unitSphere().intersect(down_onto_top, positive_t))};
+    const ShapeHit bottom{requireValue(unitSphere().intersect(up_onto_bottom, positive_t))};
+
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(top).y, 1.0, default_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(bottom).y, 0.0, default_tolerance);
+}
+
+TEST(SphereTest, textureCoordinateUWrapsAroundAtTheSeam)
+{
+    // Centred at the origin so the tiny z offsets survive in the hit point: just
+    // behind -x (towards -z) u reaches 1, just in front of it u starts at 0.
+    const Sphere sphere{Point3r{0.0, 0.0, 0.0}, 1.0};
+    const Ray behind_seam{.origin = {0.0, 0.0, 0.0}, .direction = {-1.0, 0.0, -1e-17}};
+    const Ray in_front_of_seam{.origin = {0.0, 0.0, 0.0}, .direction = {-1.0, 0.0, 1e-17}};
+
+    const ShapeHit behind{requireValue(sphere.intersect(behind_seam, positive_t))};
+    const ShapeHit in_front{requireValue(sphere.intersect(in_front_of_seam, positive_t))};
+
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(behind).x, 1.0, exact_tolerance);
+    EXPECT_NEAR(Sphere::textureCoordinatesAt(in_front).x, 0.0, exact_tolerance);
+}
+
+TEST(SphereTest, textureCoordinatesStayInTheUnitSquare)
+{
+    // Rays from the center in many directions, including along the seam at -x.
+    const Sphere sphere{Point3r{0.0, 0.0, 0.0}, 1.0};
+    const std::array<Vector3r, 7> directions{{{-1.0, 0.0, 0.0},
+                                              {-1.0, 0.0, -1e-17},
+                                              {-1.0, 0.0, 1e-17},
+                                              {0.3, -0.9, 0.2},
+                                              {-0.7, 0.6, -0.4},
+                                              {0.0, 1.0, 0.0},
+                                              {1e-9, -1.0, 0.0}}};
+
+    for (const Vector3r& direction : directions) {
+        const Ray ray{.origin = sphere.center(), .direction = direction};
+        const ShapeHit hit{requireValue(sphere.intersect(ray, positive_t))};
+
+        const Point2r uv{Sphere::textureCoordinatesAt(hit)};
+
+        EXPECT_GE(uv.x, 0.0);
+        EXPECT_LE(uv.x, 1.0);
+        EXPECT_GE(uv.y, 0.0);
+        EXPECT_LE(uv.y, 1.0);
+    }
+}
+
+TEST(SphereDeathTest, textureCoordinatesRejectANormalWithoutUnitLength)
+{
+    const ShapeHit hit{.t = 1.0, .point = {0.0, 0.0, -4.0}, .normal = {0.0, 0.0, 2.0}};
+
+    EXPECT_DEBUG_DEATH(static_cast<void>(Sphere::textureCoordinatesAt(hit)), "");
 }
 
 } // namespace

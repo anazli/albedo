@@ -13,6 +13,7 @@ namespace albedo {
 namespace {
 
 using test_support::default_tolerance;
+using test_support::exact_tolerance;
 using test_support::expectNear;
 using test_support::requireValue;
 
@@ -24,6 +25,16 @@ constexpr Interval positive_t{.min = 0.0, .max = std::numeric_limits<Real>::infi
 Triangle facingTriangle()
 {
     return Triangle{Point3r{-1.0, -1.0, -5.0}, Point3r{1.0, -1.0, -5.0}, Point3r{-1.0, 1.0, -5.0}};
+}
+
+// `facingTriangle` with texture coordinates that make every interpolation weight
+// visible in the result.
+Triangle facingTriangleWithTextureCoordinates()
+{
+    return Triangle{Point3r{-1.0, -1.0, -5.0},
+                    Point3r{1.0, -1.0, -5.0},
+                    Point3r{-1.0, 1.0, -5.0},
+                    {{{0.2, 0.1}, {0.8, 0.1}, {0.2, 0.9}}}};
 }
 
 TEST(TriangleTest, reportsItsVertices)
@@ -332,6 +343,57 @@ TEST(TriangleTest, boundsEncloseTheVertices)
 
     expectNear(box.min, Point3r{-1.0, -2.0, -4.0});
     expectNear(box.max, Point3r{2.0, 3.0, 1.0});
+}
+
+TEST(TriangleTest, defaultTextureCoordinatesAreTheUnitSquaresLowerRightHalf)
+{
+    const std::array<Point2r, 3> uv{facingTriangle().textureCoordinates()};
+
+    expectNear(uv[0], Point2r{0.0, 0.0}, exact_tolerance);
+    expectNear(uv[1], Point2r{1.0, 0.0}, exact_tolerance);
+    expectNear(uv[2], Point2r{1.0, 1.0}, exact_tolerance);
+}
+
+TEST(TriangleTest, reportsTheTextureCoordinatesGiven)
+{
+    const Triangle triangle{facingTriangleWithTextureCoordinates()};
+
+    expectNear(triangle.textureCoordinates()[2], Point2r{0.2, 0.9}, exact_tolerance);
+}
+
+TEST(TriangleTest, hitInterpolatesTheTextureCoordinates)
+{
+    // Hits (0, -0.5, -5): halfway along the first edge and a quarter up the second.
+    const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, -0.1, -1.0}};
+
+    const ShapeHit hit{
+        requireValue(facingTriangleWithTextureCoordinates().intersect(ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.5, 0.3});
+}
+
+TEST(TriangleTest, hitAtAVertexTakesItsTextureCoordinates)
+{
+    const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {0.2, -0.2, -1.0}};
+
+    const ShapeHit hit{
+        requireValue(facingTriangleWithTextureCoordinates().intersect(ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.8, 0.1});
+}
+
+TEST(TriangleTest, rejectsNonFiniteTextureCoordinates)
+{
+    constexpr Real nan{std::numeric_limits<Real>::quiet_NaN()};
+    constexpr Real infinity{std::numeric_limits<Real>::infinity()};
+    const Point3r p0{-1.0, -1.0, -5.0};
+    const Point3r p1{1.0, -1.0, -5.0};
+    const Point3r p2{-1.0, 1.0, -5.0};
+
+    EXPECT_THROW(Triangle(p0, p1, p2, {{{nan, 0.0}, {1.0, 0.0}, {0.0, 1.0}}}),
+                 std::invalid_argument);
+    EXPECT_THROW(Triangle(p0, p1, p2, {{{0.0, 0.0}, {1.0, 0.0}, {0.0, -infinity}}}),
+                 std::invalid_argument);
 }
 
 } // namespace

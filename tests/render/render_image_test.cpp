@@ -19,7 +19,7 @@ namespace {
 using test_support::expectNear;
 
 // Any material will do where only geometry matters.
-const Material matte{DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}}};
+const Material matte{DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}}};
 
 PerspectiveCamera testCamera()
 {
@@ -193,7 +193,8 @@ TEST(RenderImageTest, defaultEstimatorRendersAWhiteFurnaceAsTheSky)
     constexpr Rgb sky_radiance{0.7, 0.8, 0.9};
     const PerspectiveCamera camera{testCamera()};
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 2.9}, DiffuseMaterial{.albedo = {1.0, 1.0, 1.0}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 2.9},
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {1.0, 1.0, 1.0}}});
     scene.setSky(SkyLight::uniform(sky_radiance));
     PixelBuffer image{2, 1};
 
@@ -290,8 +291,9 @@ TEST(RenderImageTest, imageIsIdenticalForEveryThreadCount)
     const PerspectiveCamera camera{testCamera()};
     Scene scene;
     scene.add(Sphere{Point3r{0.0, -101.0, -3.0}, 100.0},
-              DiffuseMaterial{.albedo = {0.6, 0.6, 0.6}});
-    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 1.0}, DiffuseMaterial{.albedo = {0.8, 0.3, 0.2}});
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {0.6, 0.6, 0.6}}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -3.0}, 1.0},
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {0.8, 0.3, 0.2}}});
     scene.setSky({.nadir = {1.0, 1.0, 1.0}, .zenith = {0.5, 0.7, 1.0}});
     constexpr int width{37};
     constexpr int height{21};

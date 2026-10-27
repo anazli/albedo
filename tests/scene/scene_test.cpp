@@ -1,5 +1,8 @@
 #include "albedo/scene/scene.hpp"
 
+#include "albedo/core/transform.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/mesh_instance.hpp"
 #include "albedo/geometry/triangle_mesh.hpp"
 #include "albedo/material/material.hpp"
 #include "support/expect_near.hpp"
@@ -9,6 +12,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <variant>
 
@@ -20,7 +24,7 @@ using test_support::expectNear;
 using test_support::requireValue;
 
 // Any material will do where only geometry matters.
-const Material matte{DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}}};
+const Material matte{DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}}};
 
 constexpr Interval positive_t{.min = 0.0, .max = std::numeric_limits<Real>::infinity()};
 
@@ -136,7 +140,7 @@ TEST(SceneTest, scatteringAtUsesTheMaterialOfTheObjectHit)
     Scene scene;
     scene.add(Sphere{Point3r{0.0, 0.0, -9.0}, 1.0}, matte);
     scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
-              Material{DiffuseMaterial{.albedo = near_albedo}});
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = near_albedo}}});
     const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
     const Vector3r back_towards_origin{0.0, 0.0, 1.0};
 
@@ -372,7 +376,8 @@ TEST(SceneTest, meshTrianglesUseTheMeshMaterial)
 {
     constexpr Rgb mesh_albedo{0.2, 0.7, 0.4};
     Scene scene;
-    scene.add(squareMesh(), Material{DiffuseMaterial{.albedo = mesh_albedo}});
+    scene.add(squareMesh(),
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = mesh_albedo}}});
     const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
     const Vector3r back_towards_origin{0.0, 0.0, 1.0};
 
@@ -442,6 +447,77 @@ TEST(SceneTest, anAreaLightIsFoundByIntersectionAndShadowRays)
 
     EXPECT_EQ(hit.object, 1U);
     EXPECT_TRUE(scene.occluded(forward_ray, {.min = 0.0, .max = 10.0}));
+}
+
+TEST(SceneTest, hitRecordCarriesTheTextureCoordinatesOfTheShapeHit)
+{
+    Scene scene;
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, matte);
+
+    const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.25, 0.5});
+}
+
+TEST(SceneTest, instancesOfOneMeshAreEachHitWithTheirOwnMaterial)
+{
+    // squareMesh() spans x in [-1, 1] at depth -5; the second instance sits at x = 4.
+    constexpr Rgb second_albedo{0.2, 0.7, 0.4};
+    const auto geometry{std::make_shared<const MeshGeometry>(squareMesh())};
+    Scene scene;
+    scene.add(MeshInstance{geometry, Transform{}}, matte);
+    scene.add(MeshInstance{geometry, Transform::translation({4.0, 0.0, 0.0})},
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = second_albedo}}});
+    const Ray towards_second{.origin = {4.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+    const Vector3r back_towards_origin{0.0, 0.0, 1.0};
+
+    const HitRecord first_hit{requireValue(scene.intersect(forward_ray, positive_t))};
+    const HitRecord second_hit{requireValue(scene.intersect(towards_second, positive_t))};
+
+    EXPECT_EQ(scene.shapeCount(), 2U);
+    EXPECT_EQ(first_hit.object, 0U);
+    EXPECT_EQ(second_hit.object, 1U);
+    EXPECT_NEAR(second_hit.t, 5.0, default_tolerance);
+    expectNear(scene.scatteringAt(second_hit).evaluate(back_towards_origin, back_towards_origin),
+               second_albedo * inv_pi);
+}
+
+// squareMesh() doubled in size, so it lies at depth -10.
+Scene sceneWithAScaledInstance()
+{
+    Scene scene;
+    scene.add(MeshInstance{std::make_shared<const MeshGeometry>(squareMesh()),
+                           Transform::scaling({2.0, 2.0, 2.0})},
+              matte);
+    return scene;
+}
+
+TEST(SceneTest, instancesBlockShadowRays)
+{
+    EXPECT_TRUE(sceneWithAScaledInstance().occluded(forward_ray, {.min = 0.0, .max = 20.0}));
+}
+
+TEST(SceneTest, instancesBeyondAShadowRayDoNotBlockIt)
+{
+    EXPECT_FALSE(sceneWithAScaledInstance().occluded(forward_ray, {.min = 0.0, .max = 9.0}));
+}
+
+TEST(SceneTest, hitRecordCarriesTheTextureCoordinatesOfAMeshTriangle)
+{
+    // A textured square at depth -5; the ray hits (0.5, -0.5), three quarters
+    // across in u and a quarter up in v.
+    Scene scene;
+    scene.add(
+        TriangleMesh{{{-1.0, -1.0, -5.0}, {1.0, -1.0, -5.0}, {1.0, 1.0, -5.0}, {-1.0, 1.0, -5.0}},
+                     {{0, 1, 2}, {0, 2, 3}},
+                     {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}},
+                     {{0, 1, 2}, {0, 2, 3}}},
+        matte);
+    const Ray ray{.origin = {0.5, -0.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.75, 0.25});
 }
 
 } // namespace
