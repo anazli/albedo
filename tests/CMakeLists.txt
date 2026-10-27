@@ -56,6 +56,9 @@ add_executable(albedo_tests
     scattering/scattering_test.cpp
     scattering/specular_test.cpp
     scene/scene_test.cpp
+    texture/checker_texture_test.cpp
+    texture/constant_texture_test.cpp
+    texture/texture_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(albedo_tests PRIVATE albedo_core GTest::gtest_main)

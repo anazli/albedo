@@ -14,7 +14,7 @@ using test_support::exact_tolerance;
 using test_support::expectNear;
 
 constexpr Rgb sky_radiance{0.9, 0.7, 0.5};
-const Material white{DiffuseMaterial{.albedo = {1.0, 1.0, 1.0}}};
+const Material white{DiffuseMaterial{.albedo = ConstantTexture{.color = {1.0, 1.0, 1.0}}}};
 constexpr Ray down_minus_z{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
 // Estimates are combinations of a few products, so they match closely.
 constexpr double estimate_tolerance{1e-9};
@@ -81,7 +81,8 @@ TEST(ScatterOnlyEstimatorTest, singleBounceIsScaledByTheAlbedo)
 {
     constexpr Rgb albedo{0.5, 0.25, 0.8};
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, Material{DiffuseMaterial{.albedo = albedo}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = albedo}}});
     scene.setSky(SkyLight::uniform(sky_radiance));
     SampleGenerator generator{testGenerator()};
 
@@ -95,7 +96,7 @@ TEST(ScatterOnlyEstimatorTest, usesTheMaterialOfTheObjectHit)
     Scene scene;
     scene.add(Sphere{Point3r{0.0, 0.0, -9.0}, 1.0}, white);
     scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
-              Material{DiffuseMaterial{.albedo = near_albedo}});
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = near_albedo}}});
     scene.setSky(SkyLight::uniform({1.0, 1.0, 1.0}));
     SampleGenerator generator{testGenerator()};
     // Scattered rays leave the near sphere towards +z, away from the far one.
@@ -156,7 +157,8 @@ TEST(ScatterOnlyEstimatorTest, scatterCountLimitAllowsExactlyThatManyScatterings
     // One scattering off a convex sphere is all this path needs to escape.
     constexpr Rgb albedo{0.5, 0.25, 0.8};
     Scene scene;
-    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, Material{DiffuseMaterial{.albedo = albedo}});
+    scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = albedo}}});
     scene.setSky(SkyLight::uniform(sky_radiance));
     SampleGenerator generator{testGenerator()};
 
@@ -217,7 +219,7 @@ TEST(ScatterOnlyEstimatorTest, cameraRaySeesAnAreaLight)
     constexpr Rgb emitted{4.0, 3.0, 2.0};
     Scene scene;
     scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, emitted,
-                       DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+                       DiffuseMaterial{.albedo = ConstantTexture{.color = {0.0, 0.0, 0.0}}});
     SampleGenerator generator{testGenerator()};
 
     expectNear(ScatterOnlyEstimator{}.radiance(down_minus_z, scene, generator), emitted,
@@ -233,9 +235,9 @@ TEST(ScatterOnlyEstimatorTest, diffuseGroundUnderAnAreaLightMatchesTheAnalyticRa
     constexpr Real albedo{0.5};
     Scene scene;
     scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0},
-              DiffuseMaterial{.albedo = {albedo, albedo, albedo}});
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {albedo, albedo, albedo}}});
     scene.addAreaLight(Sphere{Point3r{0.0, 5.0, 0.0}, 2.0}, emitted,
-                       DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+                       DiffuseMaterial{.albedo = ConstantTexture{.color = {0.0, 0.0, 0.0}}});
     SampleGenerator generator{testGenerator()};
     // Straight down at the point under the light, from below the light.
     const Ray at_ground{.origin = {0.0, 1.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
@@ -258,7 +260,7 @@ TEST(ScatterOnlyEstimatorTest, emissionSeenBeforeTheScatterLimitCounts)
     constexpr Rgb emitted{4.0, 3.0, 2.0};
     Scene scene;
     scene.addAreaLight(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0}, emitted,
-                       DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}});
+                       DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}});
     SampleGenerator generator{testGenerator()};
 
     expectNear(

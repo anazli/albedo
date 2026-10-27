@@ -17,8 +17,8 @@ namespace {
 using test_support::exact_tolerance;
 using test_support::expectNear;
 
-const Material black{DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}}};
-const Material white{DiffuseMaterial{.albedo = {1.0, 1.0, 1.0}}};
+const Material black{DiffuseMaterial{.albedo = ConstantTexture{.color = {0.0, 0.0, 0.0}}}};
+const Material white{DiffuseMaterial{.albedo = ConstantTexture{.color = {1.0, 1.0, 1.0}}}};
 constexpr Ray down_minus_z{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
 // Straight down onto the ground at the origin, from below any light above it.
 constexpr Ray at_ground{.origin = {0.0, 1.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
@@ -32,7 +32,7 @@ SampleGenerator testGenerator()
 void addGround(Scene& scene, Real albedo)
 {
     scene.add(Sphere{Point3r{0.0, -1000.0, 0.0}, 1000.0},
-              DiffuseMaterial{.albedo = {albedo, albedo, albedo}});
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {albedo, albedo, albedo}}});
 }
 
 // The mean of `sample_count` estimates, each drawn from one shared generator.

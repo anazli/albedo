@@ -18,6 +18,7 @@
 #include "albedo/material/diffuse_material.hpp"
 #include "albedo/render/render_image.hpp"
 #include "albedo/scene/scene.hpp"
+#include "albedo/texture/constant_texture.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -92,14 +93,14 @@ void addRoom(albedo::Scene& scene)
     using albedo::DiffuseMaterial;
     using albedo::Point3r;
     using albedo::Sphere;
-    const DiffuseMaterial white{.albedo = {0.73, 0.73, 0.73}};
+    const DiffuseMaterial white{.albedo = albedo::ConstantTexture{.color = {0.73, 0.73, 0.73}}};
     scene.add(Sphere{Point3r{0.0, -wall_radius, 0.0}, wall_radius}, white);
     scene.add(Sphere{Point3r{0.0, room_height + wall_radius, 0.0}, wall_radius}, white);
     scene.add(Sphere{Point3r{0.0, 0.0, back_wall_z - wall_radius}, wall_radius}, white);
     scene.add(Sphere{Point3r{-room_half_width - wall_radius, 0.0, 0.0}, wall_radius},
-              DiffuseMaterial{.albedo = {0.63, 0.07, 0.05}});
+              DiffuseMaterial{.albedo = albedo::ConstantTexture{.color = {0.63, 0.07, 0.05}}});
     scene.add(Sphere{Point3r{room_half_width + wall_radius, 0.0, 0.0}, wall_radius},
-              DiffuseMaterial{.albedo = {0.12, 0.45, 0.15}});
+              DiffuseMaterial{.albedo = albedo::ConstantTexture{.color = {0.12, 0.45, 0.15}}});
 }
 
 // The two largest spheres, in the middle of the room: smooth glass and rough gold.
@@ -128,7 +129,8 @@ void addOuterSpheres(albedo::Scene& scene)
               DielectricMaterial{.ior = 1.5, .roughness = 0.35});
     scene.add(Sphere{Point3r{0.9, 0.35, 2.3}, 0.35},
               ConductorMaterial{.eta = copper_eta, .k = copper_k, .roughness = 0.3});
-    scene.add(Sphere{Point3r{-2.2, 0.5, -2.8}, 0.5}, DiffuseMaterial{.albedo = {0.15, 0.3, 0.7}});
+    scene.add(Sphere{Point3r{-2.2, 0.5, -2.8}, 0.5},
+              DiffuseMaterial{.albedo = albedo::ConstantTexture{.color = {0.15, 0.3, 0.7}}});
 }
 
 // A warm light set into the ceiling with only its lowest part showing below it
@@ -136,8 +138,9 @@ void addOuterSpheres(albedo::Scene& scene)
 // shadows) and a faint sky through the open front.
 void addLights(albedo::Scene& scene)
 {
-    scene.addAreaLight(albedo::Sphere{albedo::Point3r{0.0, room_height + 0.6, -1.2}, 1.1},
-                       {9.0, 7.6, 5.8}, albedo::DiffuseMaterial{.albedo = {0.0, 0.0, 0.0}});
+    scene.addAreaLight(
+        albedo::Sphere{albedo::Point3r{0.0, room_height + 0.6, -1.2}, 1.1}, {9.0, 7.6, 5.8},
+        albedo::DiffuseMaterial{.albedo = albedo::ConstantTexture{.color = {0.0, 0.0, 0.0}}});
     scene.addLight(albedo::PointLight{.position = {0.8, 4.2, 3.2}, .intensity = {1.2, 2.0, 3.6}});
     scene.setSky(albedo::SkyLight::uniform({0.05, 0.06, 0.08}));
 }

@@ -11,7 +11,7 @@ namespace {
 using test_support::expectNear;
 
 // Any material will do where only geometry matters.
-const Material matte{DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}}};
+const Material matte{DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}}};
 
 constexpr Ray down_minus_z{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
 

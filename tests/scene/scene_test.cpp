@@ -20,7 +20,7 @@ using test_support::expectNear;
 using test_support::requireValue;
 
 // Any material will do where only geometry matters.
-const Material matte{DiffuseMaterial{.albedo = {0.5, 0.5, 0.5}}};
+const Material matte{DiffuseMaterial{.albedo = ConstantTexture{.color = {0.5, 0.5, 0.5}}}};
 
 constexpr Interval positive_t{.min = 0.0, .max = std::numeric_limits<Real>::infinity()};
 
@@ -136,7 +136,7 @@ TEST(SceneTest, scatteringAtUsesTheMaterialOfTheObjectHit)
     Scene scene;
     scene.add(Sphere{Point3r{0.0, 0.0, -9.0}, 1.0}, matte);
     scene.add(Sphere{Point3r{0.0, 0.0, -5.0}, 1.0},
-              Material{DiffuseMaterial{.albedo = near_albedo}});
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = near_albedo}}});
     const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
     const Vector3r back_towards_origin{0.0, 0.0, 1.0};
 
@@ -372,7 +372,8 @@ TEST(SceneTest, meshTrianglesUseTheMeshMaterial)
 {
     constexpr Rgb mesh_albedo{0.2, 0.7, 0.4};
     Scene scene;
-    scene.add(squareMesh(), Material{DiffuseMaterial{.albedo = mesh_albedo}});
+    scene.add(squareMesh(),
+              Material{DiffuseMaterial{.albedo = ConstantTexture{.color = mesh_albedo}}});
     const HitRecord hit{requireValue(scene.intersect(forward_ray, positive_t))};
     const Vector3r back_towards_origin{0.0, 0.0, 1.0};
 

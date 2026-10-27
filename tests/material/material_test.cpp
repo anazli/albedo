@@ -2,6 +2,8 @@
 
 #include "albedo/core/normal3.hpp"
 #include "albedo/core/vector3.hpp"
+#include "albedo/texture/checker_texture.hpp"
+#include "albedo/texture/constant_texture.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
 
@@ -35,7 +37,7 @@ TEST(MaterialTest, materialVariantRejectsNonMaterialAlternatives)
 }
 
 constexpr Rgb albedo{0.7, 0.2, 0.4};
-const Material material{DiffuseMaterial{.albedo = albedo}};
+const Material material{DiffuseMaterial{.albedo = ConstantTexture{.color = albedo}}};
 const HitRecord hit{
     .t = 1.0, .point = {0.0, 0.0, 0.0}, .normal = {1.0, 0.0, 0.0}, .front_face = true};
 const Vector3r wo{normalized(Vector3r{1.0, 0.2, 0.0})};
@@ -45,6 +47,20 @@ TEST(MaterialTest, diffuseMaterialReflectsItsAlbedo)
     const Scattering scattering{scatteringAt(material, hit)};
 
     expectNear(scattering.evaluate(wo, normalized(Vector3r{1.0, -0.5, 0.3})), albedo * inv_pi);
+}
+
+TEST(MaterialTest, diffuseMaterialTakesItsAlbedoFromTheTextureAtTheHit)
+{
+    // The hit lies in square (1, 0) of a one-per-unit checker: an odd square.
+    constexpr Rgb odd_albedo{0.1, 0.5, 0.9};
+    const Material checkered{
+        DiffuseMaterial{.albedo = CheckerTexture{.even = {}, .odd = odd_albedo, .frequency = 1.0}}};
+    HitRecord textured_hit{hit};
+    textured_hit.uv = {1.5, 0.5};
+
+    const Scattering scattering{scatteringAt(checkered, textured_hit)};
+
+    expectNear(scattering.evaluate(wo, normalized(Vector3r{1.0, -0.5, 0.3})), odd_albedo * inv_pi);
 }
 
 TEST(MaterialTest, diffuseMaterialDoesNotTransmit)
