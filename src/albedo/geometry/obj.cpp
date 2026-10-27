@@ -4,6 +4,7 @@
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
 #include "albedo/io/line_reader.hpp"
+#include "albedo/io/path_text.hpp"
 #include "albedo/io/tokens.hpp"
 
 #include <array>
@@ -254,7 +255,7 @@ TriangleMesh readObj(const std::filesystem::path& path, const ObjLimits& limits)
 {
     std::ifstream file{path, std::ios::binary};
     if (!file) {
-        throw std::runtime_error{std::format("cannot open OBJ file '{}'", path.string())};
+        throw std::runtime_error{std::format("cannot open OBJ file '{}'", pathText(path))};
     }
     return readObj(file, limits);
 }

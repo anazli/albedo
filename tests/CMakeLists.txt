@@ -41,6 +41,7 @@ add_executable(albedo_tests
     image/pixel_buffer_test.cpp
     image/ppm_test.cpp
     io/line_reader_test.cpp
+    io/path_text_test.cpp
     io/tokens_test.cpp
     light/area_light_test.cpp
     light/light_test.cpp

@@ -3,13 +3,16 @@
 #include "albedo/light/light.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
+#include "support/temporary_directory.hpp"
 #include "support/temporary_file.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -19,10 +22,12 @@
 namespace albedo {
 namespace {
 
+using test_support::CurrentDirectory;
 using test_support::default_tolerance;
 using test_support::exact_tolerance;
 using test_support::expectNear;
 using test_support::requireValue;
+using test_support::TemporaryDirectory;
 using test_support::TemporaryFile;
 
 SceneDescription readSceneText(std::string_view text, const SceneLimits& limits = {})
@@ -606,6 +611,471 @@ TEST(SceneFileTest, missingFileThrowsNamingThePath)
         EXPECT_NE(std::string_view{error.what()}.find("albedo_no_such_scene_file.scene"),
                   std::string_view::npos);
     }
+}
+
+// --- meshes and instances
+
+// A 2 x 2 square in the plane z = 0, facing +z, with texture coordinates
+// spanning the unit square.
+constexpr std::string_view square_obj{"v -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\n"
+                                      "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+                                      "f 1/1 2/2 3/3 4/4\n"};
+
+// The camera, a red material and the square as mesh `sq`, then `rest`, so
+// the statements under test start on line 4.
+std::string withSquare(std::string_view rest)
+{
+    return withCamera("material red diffuse color 0.6 0.1 0.1\nmesh sq square.obj\n") +
+           std::string{rest};
+}
+
+// A directory holding square.obj, unique to the calling test.
+class SquareDirectory {
+public:
+    explicit SquareDirectory(std::string_view test_name)
+        : directory{std::string{"albedo_scene_file_test_"} + std::string{test_name}}
+    {
+        static_cast<void>(directory.write("square.obj", square_obj));
+    }
+
+    [[nodiscard]] const TemporaryDirectory& get() const noexcept { return directory; }
+
+    [[nodiscard]] SceneDescription read(std::string_view text, const SceneLimits& limits = {}) const
+    {
+        std::istringstream input{std::string{text}};
+        return readScene(input, directory.path(), limits);
+    }
+
+    [[nodiscard]] std::size_t errorLine(std::string_view text, const SceneLimits& limits = {}) const
+    {
+        try {
+            static_cast<void>(read(text, limits));
+        } catch (const SceneParseError& error) {
+            return error.line();
+        }
+        return no_error;
+    }
+
+    [[nodiscard]] std::string errorMessage(std::string_view text) const
+    {
+        try {
+            static_cast<void>(read(text));
+        } catch (const SceneParseError& error) {
+            return error.what();
+        }
+        return {};
+    }
+
+private:
+    TemporaryDirectory directory;
+};
+
+// The t at which `ray` first hits `scene`, if it does.
+std::optional<Real> hitDistance(const Scene& scene, const Ray& ray)
+{
+    const auto hit{scene.intersect(ray, positive_t)};
+    return hit ? std::optional<Real>{hit->t} : std::nullopt;
+}
+
+TEST(SceneFileTest, meshStatementsNeedABaseDirectory)
+{
+    EXPECT_EQ(errorLine(withCamera("mesh sq square.obj\n")), 2U);
+}
+
+TEST(SceneFileTest, readsAMeshAndPlacesAnInstanceWithItsMaterial)
+{
+    const SquareDirectory directory{"places_instance"};
+
+    const SceneDescription description{
+        directory.read(withSquare("instance sq material red translate 0 0 -5\n"))};
+
+    EXPECT_EQ(description.scene.shapeCount(), 1U);
+    EXPECT_NEAR(requireValue(hitDistance(description.scene, forward_ray)), 5.0, default_tolerance);
+    expectNear(reflectanceAhead(description.scene), Rgb{0.6, 0.1, 0.1} * inv_pi);
+}
+
+TEST(SceneFileTest, instancesKeepTheMeshTextureCoordinates)
+{
+    const SquareDirectory directory{"texture_coordinates"};
+    const SceneDescription description{
+        directory.read(withSquare("instance sq material red translate 0 0 -5\n"))};
+    const Ray ray{.origin = {0.5, -0.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    const HitRecord hit{requireValue(description.scene.intersect(ray, positive_t))};
+
+    expectNear(hit.uv, Point2r{0.75, 0.25});
+}
+
+TEST(SceneFileTest, instanceOperationsApplyInTheOrderWritten)
+{
+    const SquareDirectory directory{"operation_order"};
+
+    const SceneDescription scaled_then_moved{
+        directory.read(withSquare("instance sq material red scale 2 translate 0 0 -5\n"))};
+    const SceneDescription moved_then_scaled{
+        directory.read(withSquare("instance sq material red translate 0 0 -5 scale 2\n"))};
+
+    EXPECT_NEAR(requireValue(hitDistance(scaled_then_moved.scene, forward_ray)), 5.0,
+                default_tolerance);
+    EXPECT_NEAR(requireValue(hitDistance(moved_then_scaled.scene, forward_ray)), 10.0,
+                default_tolerance);
+}
+
+TEST(SceneFileTest, scaleTakesOneOrThreeFactors)
+{
+    const SquareDirectory directory{"scale_factors"};
+    const SceneDescription description{
+        directory.read(withSquare("instance sq material red scale 2 1 1 translate 0 0 -5\n"))};
+    const Ray inside_along_x{.origin = {1.5, 0.0, 0.0}, .direction = {0.0, 0.0, -1.0}};
+    const Ray outside_along_y{.origin = {0.0, 1.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    EXPECT_TRUE(hitDistance(description.scene, inside_along_x).has_value());
+    EXPECT_FALSE(hitDistance(description.scene, outside_along_y).has_value());
+}
+
+TEST(SceneFileTest, rotateTurnsAboutAnAxisInDegrees)
+{
+    // A quarter turn about +y takes the square's normal from +z to +x.
+    const SquareDirectory directory{"rotate"};
+    const SceneDescription description{
+        directory.read(withSquare("instance sq material red rotate 0 1 0 90 translate -5 0 0\n"))};
+    const Ray towards_minus_x{.origin = {0.0, 0.0, 0.0}, .direction = {-1.0, 0.0, 0.0}};
+
+    EXPECT_NEAR(requireValue(hitDistance(description.scene, towards_minus_x)), 5.0,
+                default_tolerance);
+}
+
+TEST(SceneFileTest, fitCentresAndScalesTheInstanceAsPlacedSoFar)
+{
+    // Wherever it was moved first, fit 4 centres the square and makes it 4 wide.
+    const SquareDirectory directory{"fit"};
+    const SceneDescription description{directory.read(
+        withSquare("instance sq material red translate 10 10 10 fit 4 translate 0 0 -5\n"))};
+    const Ray inside_after_fit{.origin = {1.5, 1.5, 0.0}, .direction = {0.0, 0.0, -1.0}};
+
+    EXPECT_NEAR(requireValue(hitDistance(description.scene, inside_after_fit)), 5.0,
+                default_tolerance);
+}
+
+TEST(SceneFileTest, groundStandsTheInstanceOnTheFloor)
+{
+    // Laid flat at y = -3, then lifted so its lowest corner is at y = 0.
+    const SquareDirectory directory{"ground"};
+    const SceneDescription description{directory.read(
+        withSquare("instance sq material red rotate 1 0 0 90 translate 0 -3 0 ground\n"))};
+    const Ray down{.origin = {0.5, 5.0, 0.5}, .direction = {0.0, -1.0, 0.0}};
+
+    EXPECT_NEAR(requireValue(hitDistance(description.scene, down)), 5.0, default_tolerance);
+}
+
+TEST(SceneFileTest, instancesOfOneMeshShareItsGeometry)
+{
+    const SquareDirectory directory{"shared"};
+    const SceneDescription description{
+        directory.read(withSquare("instance sq material red translate 0 0 -5\n"
+                                  "instance sq material red translate 0 0 -8\n"))};
+
+    EXPECT_EQ(description.scene.shapeCount(), 2U);
+}
+
+TEST(SceneFileTest, readsMeshesFromSubdirectories)
+{
+    const SquareDirectory directory{"subdirectory"};
+    static_cast<void>(directory.get().write("meshes/also_square.obj", square_obj));
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq meshes/also_square.obj\n")), no_error);
+}
+
+TEST(SceneFileTest, rejectsMeshPathsLeavingTheSceneDirectory)
+{
+    const SquareDirectory directory{"escaping_paths"};
+    static_cast<void>(directory.get().write("sub/square.obj", square_obj));
+    const std::string absolute{(directory.get().path() / "square.obj").generic_string()};
+
+    for (const std::string& path :
+         {std::string{"../square.obj"}, std::string{"sub/../square.obj"},
+          std::string{"./../square.obj"}, std::string{"/square.obj"}, absolute}) {
+        const std::string message{directory.errorMessage(withCamera("mesh sq " + path + "\n"))};
+        EXPECT_NE(message.find("scene line 2"), std::string::npos) << message;
+        EXPECT_NE(message.find("must be relative"), std::string::npos) << message;
+    }
+}
+
+TEST(SceneFileTest, rejectsMeshPathsWithControlCharactersOrInvalidUtf8)
+{
+    const SquareDirectory directory{"bad_bytes"};
+    // A control byte, a byte that never starts UTF-8, an overlong '/', a lead
+    // byte cut short, a surrogate, a three-byte overlong form and a code point
+    // past U+10FFFF.
+    for (const std::string_view path :
+         {"sq\x01.obj", "\xFF.obj", "\xC0\xAF.obj", "a\xE2\x82", "\xED\xA0\x80.obj",
+          "\xE0\x80\xAF.obj", "\xF4\x90\x80\x80.obj"}) {
+        const std::string message{
+            directory.errorMessage(withCamera("mesh sq " + std::string{path} + "\n"))};
+        EXPECT_NE(message.find("must be UTF-8"), std::string::npos) << message;
+    }
+}
+
+TEST(SceneFileTest, acceptsMeshPathsInUtf8)
+{
+    const SquareDirectory directory{"utf8_path"};
+    static_cast<void>(directory.get().write(std::filesystem::path{u8"caf\u00e9.obj"}, square_obj));
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq caf\xC3\xA9.obj\n")), no_error);
+}
+
+TEST(SceneFileTest, rejectsMeshPathsNamingWindowsDevices)
+{
+    const SquareDirectory directory{"device_names"};
+    for (const std::string_view path : {"nul", "CON", "sub/aux.obj", "com1.obj", "Lpt9",
+                                        "nul.tar.obj", "com1.a.obj", "nul:x", "COM\xC2\xB9"}) {
+        const std::string message{
+            directory.errorMessage(withCamera("mesh sq " + std::string{path} + "\n"))};
+        EXPECT_NE(message.find("names a device"), std::string::npos) << message;
+    }
+}
+
+TEST(SceneFileTest, acceptsNamesThatOnlyResembleDevices)
+{
+    const SquareDirectory directory{"device_lookalikes"};
+    static_cast<void>(directory.get().write("console.obj", square_obj));
+    static_cast<void>(directory.get().write("com10.obj", square_obj));
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh a console.obj\nmesh b com10.obj\n")), no_error);
+}
+
+TEST(SceneFileTest, rejectsMeshPathsThatAreNotRegularFiles)
+{
+    const SquareDirectory directory{"not_regular"};
+    std::filesystem::create_directories(directory.get().path() / "folder.obj");
+
+    const std::string message{directory.errorMessage(withCamera("mesh sq folder.obj\n"))};
+
+    EXPECT_NE(message.find("not a regular file"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, emptyBaseDirectoryMeansTheCurrentDirectory)
+{
+    const SquareDirectory directory{"empty_base"};
+    const CurrentDirectory inside{directory.get().path()};
+    std::istringstream input{withCamera("mesh sq square.obj\n")};
+
+    EXPECT_NO_THROW(static_cast<void>(readScene(input, std::filesystem::path{})));
+}
+
+TEST(SceneFileTest, emptyBaseDirectoryStillStopsLinksLeavingIt)
+{
+    const SquareDirectory directory{"empty_base_link"};
+    const TemporaryDirectory outside{"albedo_scene_file_test_empty_base_link_target"};
+    static_cast<void>(outside.write("square.obj", square_obj));
+    std::error_code error;
+    std::filesystem::create_directory_symlink(outside.path(), directory.get().path() / "linked",
+                                              error);
+    if (error) {
+        GTEST_SKIP() << "cannot create symbolic links here: " << error.message();
+    }
+    const CurrentDirectory inside{directory.get().path()};
+    std::istringstream input{withCamera("mesh sq linked/square.obj\n")};
+
+    try {
+        static_cast<void>(readScene(input, std::filesystem::path{}));
+        FAIL() << "expected a SceneParseError";
+    } catch (const SceneParseError& error) {
+        EXPECT_NE(std::string_view{error.what()}.find("leads outside"), std::string_view::npos)
+            << error.what();
+    }
+}
+
+TEST(SceneFileTest, sceneFileNamedWithoutADirectoryFindsMeshesBesideIt)
+{
+    const SquareDirectory directory{"bare_scene_name"};
+    static_cast<void>(directory.get().write(
+        "room.scene", withSquare("instance sq material red translate 0 0 -5\n")));
+    const CurrentDirectory inside{directory.get().path()};
+
+    EXPECT_EQ(readScene(std::filesystem::path{"room.scene"}).scene.shapeCount(), 1U);
+}
+
+TEST(SceneFileTest, rejectsMeshPathsLeavingTheSceneDirectoryThroughALink)
+{
+    const SquareDirectory directory{"escaping_link"};
+    const TemporaryDirectory outside{"albedo_scene_file_test_escaping_link_target"};
+    static_cast<void>(outside.write("square.obj", square_obj));
+    std::error_code error;
+    std::filesystem::create_directory_symlink(outside.path(), directory.get().path() / "linked",
+                                              error);
+    if (error) {
+        GTEST_SKIP() << "cannot create symbolic links here: " << error.message();
+    }
+
+    const std::string message{directory.errorMessage(withCamera("mesh sq linked/square.obj\n"))};
+
+    EXPECT_NE(message.find("leads outside"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, rejectsAMissingMeshFile)
+{
+    const SquareDirectory directory{"missing_mesh"};
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq no_such.obj\n")), 2U);
+    EXPECT_NE(directory.errorMessage(withCamera("mesh sq no_such.obj\n")).find("does not exist"),
+              std::string::npos);
+}
+
+TEST(SceneFileTest, reportsMeshFileErrorsAtTheMeshStatement)
+{
+    const SquareDirectory directory{"broken_mesh"};
+    static_cast<void>(directory.get().write("broken.obj", "v 0 0 0\nf 1 2 3\n"));
+
+    const std::string message{directory.errorMessage(withCamera("mesh b broken.obj\n"))};
+
+    EXPECT_NE(message.find("scene line 2"), std::string::npos) << message;
+    EXPECT_NE(message.find("OBJ line 2"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, rejectsAMeshWithoutTriangles)
+{
+    const SquareDirectory directory{"empty_mesh"};
+    static_cast<void>(directory.get().write("empty.obj", "v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3\n"));
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh e empty.obj\n")), 2U);
+}
+
+TEST(SceneFileTest, rejectsAMeshNamedTwice)
+{
+    const SquareDirectory directory{"mesh_twice"};
+
+    EXPECT_EQ(directory.errorLine(withSquare("mesh sq square.obj\n")), 4U);
+}
+
+TEST(SceneFileTest, rejectsInstancesOfUndefinedMeshes)
+{
+    const SquareDirectory directory{"undefined_mesh"};
+
+    EXPECT_EQ(directory.errorLine(withSquare("instance other material red\n")), 4U);
+}
+
+TEST(SceneFileTest, rejectsInstancesWithoutOneMaterial)
+{
+    const SquareDirectory directory{"instance_material"};
+
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq translate 0 0 -5\n")), 4U);
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq material red material red\n")), 4U);
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq material blue\n")), 4U);
+}
+
+TEST(SceneFileTest, rejectsUnknownAndInvalidInstanceOperations)
+{
+    const SquareDirectory directory{"bad_operations"};
+    for (const std::string_view operations :
+         {"shear 1 2", "scale 0", "scale 1 0 1", "scale 2 2", "rotate 0 0 0 30", "rotate 0 1 0",
+          "fit 0", "fit -1", "translate 0 0", "scale 1e300 scale 1e300", "ground 1"}) {
+        EXPECT_EQ(directory.errorLine(
+                      withSquare("instance sq material red " + std::string{operations} + "\n")),
+                  4U)
+            << "operations: " << operations;
+    }
+}
+
+TEST(SceneFileTest, limitsTheOperationsPerInstance)
+{
+    const SquareDirectory directory{"operation_limit"};
+    std::string operations;
+    for (int count{0}; count < 16; ++count) {
+        operations += " ground";
+    }
+
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq material red" + operations + "\n")),
+              no_error);
+    EXPECT_EQ(
+        directory.errorLine(withSquare("instance sq material red" + operations + " ground\n")), 4U);
+}
+
+TEST(SceneFileTest, instancesCountTowardsTheObjectLimit)
+{
+    const SquareDirectory directory{"instance_limit"};
+
+    EXPECT_EQ(
+        directory.errorLine(withSquare("instance sq material red\ninstance sq material red\n"),
+                            {.max_objects = 1}),
+        5U);
+}
+
+TEST(SceneFileTest, limitsTheNumberOfMeshes)
+{
+    const SquareDirectory directory{"mesh_limit"};
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh a square.obj\nmesh b square.obj\n"),
+                                  {.max_meshes = 1}),
+              3U);
+}
+
+TEST(SceneFileTest, meshLimitsBoundAllMeshesTogether)
+{
+    // Each square has two triangles: two of them fit a budget of four, three do not.
+    const SquareDirectory directory{"mesh_budget"};
+    const SceneLimits limits{.mesh_limits = {.max_triangles = 4}};
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh a square.obj\nmesh b square.obj\n"), limits),
+              no_error);
+    EXPECT_EQ(directory.errorLine(
+                  withCamera("mesh a square.obj\nmesh b square.obj\nmesh c square.obj\n"), limits),
+              4U);
+}
+
+TEST(SceneFileTest, meshLimitsBoundVerticesOfAllMeshesTogether)
+{
+    // Each square has four vertices and four texture coordinates.
+    const SquareDirectory directory{"vertex_budget"};
+    const std::string two{withCamera("mesh a square.obj\nmesh b square.obj\n")};
+    const std::string three{two + "mesh c square.obj\n"};
+
+    EXPECT_EQ(directory.errorLine(two, {.mesh_limits = {.max_vertices = 8}}), no_error);
+    EXPECT_EQ(directory.errorLine(three, {.mesh_limits = {.max_vertices = 8}}), 4U);
+    EXPECT_EQ(directory.errorLine(two, {.mesh_limits = {.max_texture_coordinates = 8}}), no_error);
+    EXPECT_EQ(directory.errorLine(three, {.mesh_limits = {.max_texture_coordinates = 8}}), 4U);
+}
+
+TEST(SceneFileTest, groundOperationsShareOneBudgetOfPoints)
+{
+    // The square's triangles use four points: two grounds fit eight, a third does not.
+    const SquareDirectory directory{"ground_budget"};
+    const SceneLimits limits{.max_ground_points = 8};
+
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq material red ground\n"
+                                             "instance sq material red ground\n"),
+                                  limits),
+              no_error);
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq material red ground ground\n"
+                                             "instance sq material red ground\n"),
+                                  limits),
+              5U);
+}
+
+TEST(SceneFileTest, uniformScaleMayBeFollowedByTheMaterial)
+{
+    const SquareDirectory directory{"scale_then_material"};
+
+    EXPECT_EQ(directory.errorLine(withSquare("instance sq scale 2 material red\n")), no_error);
+}
+
+TEST(SceneFileTest, malformedSecondScaleFactorIsReportedAsSuch)
+{
+    const SquareDirectory directory{"scale_message"};
+
+    const std::string message{
+        directory.errorMessage(withSquare("instance sq material red scale 2 inf 1\n"))};
+
+    EXPECT_NE(message.find("y scale factor"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, sceneFilesFindMeshesNextToThem)
+{
+    const SquareDirectory directory{"file_relative"};
+    const std::filesystem::path scene{directory.get().write(
+        "room.scene", withSquare("instance sq material red translate 0 0 -5\n"))};
+
+    EXPECT_EQ(readScene(scene).scene.shapeCount(), 1U);
 }
 
 } // namespace

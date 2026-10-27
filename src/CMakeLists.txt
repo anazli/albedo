@@ -18,6 +18,7 @@ target_sources(albedo_core
         albedo/image/pixel_buffer.cpp
         albedo/image/ppm.cpp
         albedo/io/line_reader.cpp
+        albedo/io/path_text.cpp
         albedo/io/tokens.cpp
         albedo/light/area_light.cpp
         albedo/light/point_light.cpp
@@ -71,6 +72,7 @@ target_sources(albedo_core
             albedo/image/pixel_buffer.hpp
             albedo/image/ppm.hpp
             albedo/io/line_reader.hpp
+            albedo/io/path_text.hpp
             albedo/io/tokens.hpp
             albedo/light/area_light.hpp
             albedo/light/light.hpp

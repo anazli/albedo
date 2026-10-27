@@ -3,6 +3,7 @@
 #include "albedo/color/rgb.hpp"
 #include "albedo/color/srgb.hpp"
 #include "albedo/image/pixel_buffer.hpp"
+#include "albedo/io/path_text.hpp"
 
 #include <cstddef>
 #include <format>
@@ -62,7 +63,7 @@ void writePpm(const std::filesystem::path& path, const PixelBuffer& image)
     // Binary mode: in text mode Windows would expand every 0x0A byte to "\r\n".
     std::ofstream file{path, std::ios::binary | std::ios::trunc};
     if (!file) {
-        throw std::runtime_error{std::format("cannot open '{}' for writing", path.string())};
+        throw std::runtime_error{std::format("cannot open '{}' for writing", pathText(path))};
     }
     // The file was truncated on open, so on failure the old content is already
     // gone; remove the partial output rather than leave a corrupt image.
@@ -72,14 +73,14 @@ void writePpm(const std::filesystem::path& path, const PixelBuffer& image)
     } catch (const std::runtime_error& error) {
         discardPartialFile(file, path);
         throw std::runtime_error{
-            std::format("failed to write '{}': {}", path.string(), error.what())};
+            std::format("failed to write '{}': {}", pathText(path), error.what())};
     } catch (...) {
         discardPartialFile(file, path);
         throw;
     }
     if (!file) {
         discardPartialFile(file, path);
-        throw std::runtime_error{std::format("failed to write '{}'", path.string())};
+        throw std::runtime_error{std::format("failed to write '{}'", pathText(path))};
     }
 }
 

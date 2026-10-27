@@ -3,9 +3,16 @@
 #include "albedo/color/rgb.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/real.hpp"
+#include "albedo/core/transform.hpp"
 #include "albedo/core/vector3.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/mesh_instance.hpp"
+#include "albedo/geometry/obj.hpp"
 #include "albedo/geometry/sphere.hpp"
+#include "albedo/geometry/triangle.hpp"
+#include "albedo/geometry/triangle_mesh.hpp"
 #include "albedo/io/line_reader.hpp"
+#include "albedo/io/path_text.hpp"
 #include "albedo/io/tokens.hpp"
 #include "albedo/light/point_light.hpp"
 #include "albedo/light/sky_light.hpp"
@@ -15,14 +22,22 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <concepts>
+#include <cstdint>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
+#include <limits>
 #include <map>
+#include <memory>
 #include <optional>
+#include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -214,10 +229,218 @@ private:
     std::size_t line_number;
 };
 
+// A mesh read from a file: its shared geometry, and the positions its
+// triangles use, each once, for `ground` to find the lowest one.
+struct LoadedMesh {
+    std::shared_ptr<const MeshGeometry> geometry;
+    std::vector<Point3r> points;
+};
+
+// The shape of a UTF-8 sequence, from its lead byte: how many bytes it has,
+// and the range its second byte must lie in to rule out overlong forms,
+// surrogates and code points past U+10FFFF (RFC 3629, table 3-7 of Unicode).
+struct Utf8Sequence {
+    std::size_t length{1};
+    unsigned char second_low{0x80};
+    unsigned char second_high{0xBF};
+};
+
+std::optional<Utf8Sequence> utf8Sequence(unsigned char lead) noexcept
+{
+    if (lead < 0x80) {
+        return Utf8Sequence{};
+    }
+    if (lead >= 0xC2 && lead <= 0xDF) {
+        return Utf8Sequence{.length = 2};
+    }
+    if (lead >= 0xE0 && lead <= 0xEF) {
+        return Utf8Sequence{.length = 3,
+                            .second_low = static_cast<unsigned char>(lead == 0xE0 ? 0xA0 : 0x80),
+                            .second_high = static_cast<unsigned char>(lead == 0xED ? 0x9F : 0xBF)};
+    }
+    if (lead >= 0xF0 && lead <= 0xF4) {
+        return Utf8Sequence{.length = 4,
+                            .second_low = static_cast<unsigned char>(lead == 0xF0 ? 0x90 : 0x80),
+                            .second_high = static_cast<unsigned char>(lead == 0xF4 ? 0x8F : 0xBF)};
+    }
+    return std::nullopt;
+}
+
+// True when `text` is well-formed UTF-8.
+bool isValidUtf8(std::string_view text) noexcept
+{
+    std::size_t index{0};
+    while (index < text.size()) {
+        const auto sequence{utf8Sequence(static_cast<unsigned char>(text[index]))};
+        if (!sequence || text.size() - index < sequence->length) {
+            return false;
+        }
+        for (std::size_t offset{1}; offset < sequence->length; ++offset) {
+            const auto byte{static_cast<unsigned char>(text[index + offset])};
+            const unsigned char low{offset == 1 ? sequence->second_low : std::uint8_t{0x80}};
+            const unsigned char high{offset == 1 ? sequence->second_high : std::uint8_t{0xBF}};
+            if (byte < low || byte > high) {
+                return false;
+            }
+        }
+        index += sequence->length;
+    }
+    return true;
+}
+
+// True when `name` (any part of a path) is a device on Windows, such as `nul`
+// or `com1.obj`: those names are reserved in every directory there, so scenes
+// avoid them everywhere and behave the same on every platform.
+bool isDeviceName(const std::filesystem::path& name)
+{
+    // Windows looks only at the text before the first '.' or ':', ignoring
+    // trailing spaces, so `nul.tar.obj` and `nul:x` are devices too.
+    std::string base{pathText(name)};
+    base.erase(std::min(base.find_first_of(".:"), base.size()));
+    while (!base.empty() && base.back() == ' ') {
+        base.pop_back();
+    }
+    std::ranges::transform(base, base.begin(), [](char c) {
+        return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c;
+    });
+    constexpr std::array<std::string_view, 4> plain{"CON", "PRN", "AUX", "NUL"};
+    if (std::ranges::find(plain, base) != plain.end()) {
+        return true;
+    }
+    if (!base.starts_with("COM") && !base.starts_with("LPT")) {
+        return false;
+    }
+    // A digit 1 to 9, or a superscript 1, 2 or 3 (in UTF-8), which Windows
+    // also reserves.
+    const std::string_view number{std::string_view{base}.substr(3)};
+    constexpr std::array<std::string_view, 3> superscripts{"\xC2\xB9", "\xC2\xB2", "\xC2\xB3"};
+    return (number.size() == 1 && number[0] >= '1' && number[0] <= '9') ||
+           std::ranges::find(superscripts, number) != superscripts.end();
+}
+
+// The relative path `text` names, or a failure unless it is plain: UTF-8
+// without control bytes, no root, no `..` and no device names.
+std::filesystem::path relativeMeshPath(const Statement& statement, std::string_view text)
+{
+    const bool control{std::ranges::any_of(text, [](char c) {
+        const auto byte{static_cast<unsigned char>(c)};
+        return byte < 0x20 || byte == 0x7F;
+    })};
+    if (control || !isValidUtf8(text)) {
+        statement.fail(
+            std::format("mesh path {} must be UTF-8 without control characters", quoted(text)));
+    }
+    // Scene files are UTF-8 whatever the platform's narrow encoding.
+    const std::filesystem::path relative{std::u8string(text.begin(), text.end())};
+    const bool rooted{relative.is_absolute() || relative.has_root_name() ||
+                      relative.has_root_directory()};
+    if (rooted || std::ranges::find(relative, std::filesystem::path{".."}) != relative.end()) {
+        statement.fail(std::format("mesh path {} must be relative to the scene and not use '..'",
+                                   quoted(text)));
+    }
+    if (std::ranges::any_of(relative, isDeviceName)) {
+        statement.fail(std::format("mesh path {} names a device", quoted(text)));
+    }
+    return relative;
+}
+
+// The regular file `text` names inside `base`, with symbolic links resolved;
+// fails unless it lies inside `base` once they are. The file is opened by this
+// resolved path, which narrows, but cannot close, the window in which the
+// directory could be changed between the check and the open.
+std::filesystem::path meshFile(const Statement& statement, const std::filesystem::path& base,
+                               std::string_view text)
+{
+    const std::filesystem::path relative{relativeMeshPath(statement, text)};
+    std::error_code error;
+    const std::filesystem::path real_base{std::filesystem::canonical(base, error)};
+    if (error) {
+        statement.fail("the scene's directory cannot be resolved");
+    }
+    const std::filesystem::path real_file{
+        std::filesystem::weakly_canonical(real_base / relative, error)};
+    if (error) {
+        statement.fail(std::format("cannot resolve mesh path {}", quoted(text)));
+    }
+    const auto [base_end, file_part]{std::ranges::mismatch(real_base, real_file)};
+    if (base_end != real_base.end()) {
+        statement.fail(
+            std::format("mesh path {} leads outside the scene's directory", quoted(text)));
+    }
+    const std::filesystem::file_status status{std::filesystem::status(real_file, error)};
+    if (status.type() == std::filesystem::file_type::not_found) {
+        statement.fail(std::format("mesh file {} does not exist", quoted(text)));
+    }
+    if (status.type() != std::filesystem::file_type::regular) {
+        statement.fail(std::format("mesh path {} is not a regular file", quoted(text)));
+    }
+    return real_file;
+}
+
+// What is left of `budget` once `mesh` is counted against it.
+ObjLimits remainingAfter(const ObjLimits& budget, const TriangleMesh& mesh) noexcept
+{
+    ObjLimits rest{budget};
+    rest.max_vertices -= mesh.positions().size();
+    rest.max_texture_coordinates -= mesh.textureCoordinates().size();
+    rest.max_triangles -= mesh.faces().size();
+    return rest;
+}
+
+// The positions that the triangles `mesh` keeps refer to, each once.
+std::vector<Point3r> usedPositions(const TriangleMesh& mesh)
+{
+    const std::span<const Point3r> positions{mesh.positions()};
+    std::vector<bool> used(positions.size(), false);
+    for (const auto& [i0, i1, i2] : mesh.faces()) {
+        if (formsTriangle(positions[i0], positions[i1], positions[i2])) {
+            used[i0] = true;
+            used[i1] = true;
+            used[i2] = true;
+        }
+    }
+    std::vector<Point3r> result;
+    for (std::size_t index{0}; index < positions.size(); ++index) {
+        if (used[index]) {
+            result.push_back(positions[index]);
+        }
+    }
+    return result;
+}
+
+// The lowest height `transform` puts any of `points` at, or nothing if any
+// height is not finite (or there are no points).
+std::optional<Real> lowestHeight(const Transform& transform, const std::vector<Point3r>& points)
+{
+    std::optional<Real> lowest;
+    for (const Point3r& point : points) {
+        const Real height{transform.apply(point).y};
+        if (!std::isfinite(height)) {
+            return std::nullopt;
+        }
+        lowest = lowest ? std::min(*lowest, height) : height;
+    }
+    return lowest;
+}
+
+// The words that start an instance operation, or its material.
+bool isInstanceKeyword(std::string_view word) noexcept
+{
+    constexpr std::array<std::string_view, 6> keywords{"material", "translate", "scale",
+                                                       "rotate",   "fit",       "ground"};
+    return std::ranges::find(keywords, word) != keywords.end();
+}
+
 // Builds the scene statement by statement.
 class SceneReader {
 public:
-    explicit SceneReader(const SceneLimits& reader_limits) : limits{reader_limits} {}
+    SceneReader(const SceneLimits& reader_limits,
+                std::optional<std::filesystem::path> mesh_directory)
+        : limits{reader_limits}, base_directory{std::move(mesh_directory)},
+          mesh_budget{reader_limits.mesh_limits},
+          ground_points_left{reader_limits.max_ground_points}
+    {
+    }
 
     void readLine(std::string_view line, std::size_t line_number)
     {
@@ -252,7 +475,9 @@ private:
             {"material", &SceneReader::readMaterial},
             {"sphere", &SceneReader::readSphere},
             {"point_light", &SceneReader::readPointLight},
-            {"area_light", &SceneReader::readAreaLight}};
+            {"area_light", &SceneReader::readAreaLight},
+            {"mesh", &SceneReader::readMesh},
+            {"instance", &SceneReader::readInstance}};
         return table;
     }
 
@@ -544,7 +769,183 @@ private:
         scene.addAreaLight(sphere, statement.required(radiance, "radiance"), material);
     }
 
+    void readMesh(Statement& statement)
+    {
+        if (!base_directory) {
+            statement.fail("meshes can only be read from a scene file, which they sit beside");
+        }
+        if (meshes.size() >= limits.max_meshes) {
+            statement.fail(std::format("more than {} meshes", limits.max_meshes));
+        }
+        const std::string_view name{statement.name("a mesh name")};
+        if (meshes.contains(name)) {
+            statement.fail(std::format("mesh {} is already defined", quoted(name)));
+        }
+        const std::string_view path{statement.word("a mesh file")};
+        statement.expectEnd();
+        const TriangleMesh mesh{
+            loadObj(statement, meshFile(statement, *base_directory, path), path)};
+        std::vector<Point3r> points{usedPositions(mesh)};
+        if (points.empty()) {
+            statement.fail(std::format("mesh {} has no triangles", quoted(path)));
+        }
+        std::shared_ptr<const MeshGeometry> geometry;
+        try {
+            geometry = std::make_shared<const MeshGeometry>(mesh);
+        } catch (const std::invalid_argument& error) {
+            statement.fail(std::format("mesh {}: {}", quoted(path), error.what()));
+        }
+        mesh_budget = remainingAfter(mesh_budget, mesh);
+        meshes.emplace(std::string{name},
+                       LoadedMesh{.geometry = std::move(geometry), .points = std::move(points)});
+    }
+
+    // The OBJ file at `file`, read within what is left of the mesh budget.
+    [[nodiscard]] TriangleMesh loadObj(const Statement& statement,
+                                       const std::filesystem::path& file,
+                                       std::string_view text) const
+    {
+        try {
+            return readObj(file, mesh_budget);
+        } catch (const ObjParseError& error) {
+            statement.fail(std::format("mesh {}: {}", quoted(text), error.what()));
+        } catch (const std::runtime_error&) {
+            statement.fail(std::format("cannot read mesh file {}", quoted(text)));
+        }
+    }
+
+    // The mesh named by the next word.
+    [[nodiscard]] const LoadedMesh& meshNamed(Statement& statement) const
+    {
+        const std::string_view name{statement.name("a mesh name")};
+        const auto found{meshes.find(name)};
+        if (found == meshes.end()) {
+            statement.fail(std::format("mesh {} is not defined", quoted(name)));
+        }
+        return found->second;
+    }
+
+    void readInstance(Statement& statement)
+    {
+        countObject(statement);
+        const LoadedMesh& mesh{meshNamed(statement)};
+        const Material* material{nullptr};
+        Transform placement{};
+        std::size_t operations{0};
+        while (const auto word{statement.next()}) {
+            if (*word == "material") {
+                if (material != nullptr) {
+                    statement.fail("'material' is given twice");
+                }
+                material = &materialNamed(statement);
+                continue;
+            }
+            if (++operations > limits.max_instance_operations) {
+                statement.fail(
+                    std::format("more than {} operations", limits.max_instance_operations));
+            }
+            placement = applied(statement, *word, mesh, placement);
+        }
+        if (material == nullptr) {
+            statement.fail("missing 'material'");
+        }
+        addInstance(statement, mesh, placement, *material);
+    }
+
+    void addInstance(const Statement& statement, const LoadedMesh& mesh, const Transform& placement,
+                     const Material& material)
+    {
+        try {
+            scene.add(MeshInstance{mesh.geometry, placement}, material);
+        } catch (const std::invalid_argument& error) {
+            statement.fail(error.what());
+        }
+    }
+
+    // `placement` followed by the operation `name`, whose values come next.
+    Transform applied(Statement& statement, std::string_view name, const LoadedMesh& mesh,
+                      const Transform& placement)
+    {
+        try {
+            if (name == "translate") {
+                return Transform::translation(statement.vector("the translation")) * placement;
+            }
+            if (name == "scale") {
+                return scaling(statement) * placement;
+            }
+            if (name == "rotate") {
+                const Vector3r axis{statement.vector("the rotation axis")};
+                return Transform::rotation(axis, statement.number("the rotation angle")) *
+                       placement;
+            }
+            if (name == "fit") {
+                return fitted(statement, mesh, placement, statement.positive("the fitted size"));
+            }
+            if (name == "ground") {
+                return grounded(statement, mesh, placement);
+            }
+        } catch (const std::invalid_argument& error) {
+            statement.fail(error.what());
+        }
+        statement.fail(std::format("unknown instance operation {}", quoted(name)));
+    }
+
+    // `scale S` or `scale X Y Z`: one factor if the statement ends or another
+    // operation (or the material) follows, three otherwise.
+    static Transform scaling(Statement& statement)
+    {
+        const Real first{statement.number("a scale factor")};
+        const auto next{statement.peek()};
+        if (!next || isInstanceKeyword(*next)) {
+            return Transform::scaling({first, first, first});
+        }
+        const Real y{statement.number("the y scale factor")};
+        return Transform::scaling({first, y, statement.number("the z scale factor")});
+    }
+
+    // `placement`, then centred on the origin and scaled so the longest side of
+    // its box is `size`.
+    static Transform fitted(const Statement& statement, const LoadedMesh& mesh,
+                            const Transform& placement, Real size)
+    {
+        const Bounds3r box{placement.apply(mesh.geometry->bounds())};
+        if (!isFinite(box.min) || !isFinite(box.max)) {
+            statement.fail("the instance is out of range before 'fit'");
+        }
+        const Vector3r extent{box.extent()};
+        const Real scale{size / std::max({extent.x, extent.y, extent.z})};
+        if (!std::isfinite(scale) || !(scale > 0)) {
+            statement.fail("the instance is too large or too small to fit");
+        }
+        // Halved before adding, so huge coordinates cannot overflow.
+        const Vector3r center{box.min.x / 2 + box.max.x / 2, box.min.y / 2 + box.max.y / 2,
+                              box.min.z / 2 + box.max.z / 2};
+        return Transform::scaling({scale, scale, scale}) * Transform::translation(-center) *
+               placement;
+    }
+
+    // `placement`, then lifted so its lowest point is at height zero. Every
+    // `ground` in the scene spends from one budget of points to transform.
+    Transform grounded(const Statement& statement, const LoadedMesh& mesh,
+                       const Transform& placement)
+    {
+        if (mesh.points.size() > ground_points_left) {
+            statement.fail(std::format("'ground' would examine more than {} points in the scene",
+                                       limits.max_ground_points));
+        }
+        ground_points_left -= mesh.points.size();
+        const auto lowest{lowestHeight(placement, mesh.points)};
+        if (!lowest) {
+            statement.fail("the instance is out of range before 'ground'");
+        }
+        return Transform::translation({0, -*lowest, 0}) * placement;
+    }
+
     SceneLimits limits;
+    std::optional<std::filesystem::path> base_directory;
+    ObjLimits mesh_budget;
+    std::size_t ground_points_left;
+    std::map<std::string, LoadedMesh, std::less<>> meshes;
     Scene scene;
     std::optional<CameraSettings> camera;
     bool sky_given{false};
@@ -561,10 +962,17 @@ SceneParseError::SceneParseError(std::size_t line, std::string_view problem)
 {
 }
 
-SceneDescription readScene(std::istream& input, const SceneLimits& limits)
+namespace {
+
+SceneDescription readSceneFrom(std::istream& input,
+                               std::optional<std::filesystem::path> base_directory,
+                               const SceneLimits& limits)
 {
     LineReader lines{input, limits.max_line_length, "scene"};
-    SceneReader reader{limits};
+    if (base_directory && base_directory->empty()) {
+        base_directory = ".";
+    }
+    SceneReader reader{limits, std::move(base_directory)};
     try {
         while (const auto line{lines.next()}) {
             reader.readLine(*line, lines.lineNumber());
@@ -576,13 +984,26 @@ SceneDescription readScene(std::istream& input, const SceneLimits& limits)
     return std::move(reader).finish();
 }
 
+} // namespace
+
+SceneDescription readScene(std::istream& input, const std::filesystem::path& base_directory,
+                           const SceneLimits& limits)
+{
+    return readSceneFrom(input, base_directory, limits);
+}
+
+SceneDescription readScene(std::istream& input, const SceneLimits& limits)
+{
+    return readSceneFrom(input, std::nullopt, limits);
+}
+
 SceneDescription readScene(const std::filesystem::path& path, const SceneLimits& limits)
 {
     std::ifstream file{path, std::ios::binary};
     if (!file) {
-        throw std::runtime_error{std::format("cannot open scene file '{}'", path.string())};
+        throw std::runtime_error{std::format("cannot open scene file '{}'", pathText(path))};
     }
-    return readScene(file, limits);
+    return readScene(file, path.parent_path(), limits);
 }
 
 } // namespace albedo

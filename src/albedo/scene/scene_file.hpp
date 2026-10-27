@@ -1,6 +1,7 @@
 #pragma once
 
 #include "albedo/camera/perspective_camera.hpp"
+#include "albedo/geometry/obj.hpp"
 #include "albedo/scene/scene.hpp"
 
 #include <cstddef>
@@ -16,12 +17,23 @@ namespace albedo {
 struct SceneLimits {
     /// Longest line accepted, in bytes, not counting the line terminator.
     std::size_t max_line_length{4096};
-    /// Most spheres, area lights and point lights together. Adding an object
-    /// rebuilds the scene's hierarchy, so loading time grows with the square of
-    /// this; large geometry belongs in meshes.
+    /// Most spheres, area lights, point lights and instances together. Adding an
+    /// object rebuilds the scene's hierarchy, so loading time grows with the
+    /// square of this; large geometry belongs in meshes.
     std::size_t max_objects{4096};
     /// Most `material` statements accepted.
     std::size_t max_materials{4096};
+    /// Most `mesh` statements accepted.
+    std::size_t max_meshes{16};
+    /// Bounds on the OBJ files that `mesh` statements read, for all of them
+    /// together rather than each: their vertices, texture coordinates and
+    /// triangles add up against these totals. `max_line_length` applies per line.
+    ObjLimits mesh_limits{};
+    /// Most operations one `instance` statement may list.
+    std::size_t max_instance_operations{16};
+    /// Most mesh points that all `ground` operations in the scene may examine
+    /// together; each `ground` examines every point its mesh's triangles use.
+    std::size_t max_ground_points{std::size_t{1} << 26U};
 };
 
 /// What `readScene` throws for input it cannot accept, naming the line at fault.
@@ -62,6 +74,8 @@ struct SceneDescription {
 ///     sphere X Y Z  radius R  material NAME
 ///     point_light X Y Z  intensity R G B
 ///     area_light X Y Z  radius R  radiance R G B  [material NAME]
+///     mesh NAME PATH
+///     instance MESH material NAME  [OPERATION...]
 ///
 /// `up` defaults to +y and `fov` to 60 degrees; roughness defaults to 0; an area
 /// light without a material is black. Exactly one camera is required, and at
@@ -76,17 +90,50 @@ struct SceneDescription {
 /// Error messages quote at most 32 bytes of the input, with bytes outside
 /// printable ASCII escaped.
 ///
+/// `mesh` reads the Wavefront OBJ file at PATH (see `readObj`), resolved against
+/// `base_directory`; an empty `base_directory` means the current directory, and
+/// it must exist. PATH must be UTF-8 without spaces or control characters,
+/// relative, without `..`, and without parts that are device names on Windows
+/// (such as `nul` or `com1.obj`, rejected on every platform); it must name a
+/// regular file still inside `base_directory` once symbolic links are resolved.
+/// So a scene can only read meshes kept beside it, though the check cannot stop
+/// the directory being changed between the check and the opening of the file.
+/// A mesh needs at least one triangle with area. `instance` places a mesh, which any
+/// number of instances share, with a material and up to
+/// `limits.max_instance_operations` operations applied in the order written:
+///
+///     translate X Y Z          move by (X, Y, Z)
+///     scale S | scale X Y Z    scale about the origin, uniformly or per axis
+///     rotate AX AY AZ DEGREES  turn about an axis through the origin
+///     fit SIZE                 centre the bounding box of the instance as
+///                              placed so far on the origin and scale it so
+///                              that box's longest side is SIZE (after a
+///                              rotation, the box is looser than the mesh)
+///     ground                   lift it so its lowest point is exactly at y = 0
+///
+/// Throws as above, and `SceneParseError` too for a mesh path breaking those
+/// rules, a mesh file that cannot be opened or read (naming the OBJ line), a
+/// mesh without triangles, meshes or `ground` operations exceeding `limits`,
+/// and operations that fail or take the instance out of range. Throws
+/// `std::invalid_argument` for an unusable `limits.mesh_limits.max_line_length`.
+///
 /// Throws `SceneParseError` for anything else: unknown statements or fields,
 /// missing or repeated fields, malformed or out-of-range values (including
 /// those the camera, sphere and material types reject), undefined or repeated
 /// names, and input exceeding `limits`. Throws what `LineReader` throws for
 /// an unreadable stream or an unusable line limit, and `std::bad_alloc` if
 /// memory runs out.
+[[nodiscard]] SceneDescription readScene(std::istream& input,
+                                         const std::filesystem::path& base_directory,
+                                         const SceneLimits& limits = {});
+
+/// Reads a scene as above, without a directory to find meshes in: a `mesh`
+/// statement is a `SceneParseError`.
 [[nodiscard]] SceneDescription readScene(std::istream& input, const SceneLimits& limits = {});
 
-/// Reads the scene file at `path` as `readScene(std::istream&, ...)` does. Throws
-/// as that does, and `std::runtime_error` naming the path if the file cannot be
-/// opened.
+/// Reads the scene file at `path` as `readScene(std::istream&, ...)` does, finding
+/// meshes in the file's own directory. Throws as that does, and
+/// `std::runtime_error` naming the path if the file cannot be opened.
 [[nodiscard]] SceneDescription readScene(const std::filesystem::path& path,
                                          const SceneLimits& limits = {});
 
