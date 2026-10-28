@@ -23,6 +23,7 @@ target_sources(albedo_core
         albedo/light/area_light.cpp
         albedo/light/point_light.cpp
         albedo/light/sky_light.cpp
+        albedo/material/mix_material.cpp
         albedo/render/render_image.cpp
         albedo/render/tile.cpp
         albedo/sampling/warps.cpp
@@ -37,6 +38,7 @@ target_sources(albedo_core
         albedo/scene/scene_file.cpp
         albedo/texture/checker_texture.cpp
         albedo/texture/perlin_noise.cpp
+        albedo/texture/perlin_pattern.cpp
         albedo/texture/perlin_texture.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -81,10 +83,12 @@ target_sources(albedo_core
             albedo/light/light_sample.hpp
             albedo/light/point_light.hpp
             albedo/light/sky_light.hpp
+            albedo/material/basic_material.hpp
             albedo/material/conductor_material.hpp
             albedo/material/dielectric_material.hpp
             albedo/material/diffuse_material.hpp
             albedo/material/material.hpp
+            albedo/material/mix_material.hpp
             albedo/render/render_image.hpp
             albedo/render/tile.hpp
             albedo/sampling/pcg32.hpp
@@ -106,6 +110,7 @@ target_sources(albedo_core
             albedo/texture/checker_texture.hpp
             albedo/texture/constant_texture.hpp
             albedo/texture/perlin_noise.hpp
+            albedo/texture/perlin_pattern.hpp
             albedo/texture/perlin_texture.hpp
             albedo/texture/texture.hpp
 )

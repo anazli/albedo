@@ -8,10 +8,8 @@ namespace albedo {
 
 /// A solid texture of Perlin noise between two colors, looked up by the hit's
 /// world-space position, so it needs no texture coordinates and flows across
-/// the seams of a mesh. Without veins it is cloudy: the blend weight is the
-/// turbulence at `scale` times the position, clamped to 1. With veins it is
-/// marble: the weight is (1 + sin(scale * x + veins * turbulence)) / 2, bands
-/// across x warped by the turbulence.
+/// the seams of a mesh. The blend weight is a `PerlinPattern` with this
+/// texture's `scale` and `veins`: cloudy without veins, marble with them.
 /// Precondition: `scale` positive and finite, `veins` finite and non-negative.
 struct PerlinTexture {
     /// The color where the weight is 0.
@@ -23,9 +21,8 @@ struct PerlinTexture {
     /// How strongly the turbulence warps the marble bands; 0 gives clouds.
     Real veins{0};
 
-    /// The color at the hit's position. A non-finite position, or one so large
-    /// that scaling overflows, gives the low color for clouds and the midpoint
-    /// of the two colors for marble.
+    /// The color at the hit's position; see `PerlinPattern::weightAt` for
+    /// positions that are not finite or overflow when scaled.
     [[nodiscard]] Rgb evaluate(const HitRecord& hit) const noexcept;
 };
 

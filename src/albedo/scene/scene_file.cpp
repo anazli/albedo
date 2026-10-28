@@ -16,13 +16,17 @@
 #include "albedo/io/tokens.hpp"
 #include "albedo/light/point_light.hpp"
 #include "albedo/light/sky_light.hpp"
+#include "albedo/material/basic_material.hpp"
 #include "albedo/material/material.hpp"
+#include "albedo/material/mix_material.hpp"
 #include "albedo/texture/checker_texture.hpp"
 #include "albedo/texture/constant_texture.hpp"
+#include "albedo/texture/perlin_pattern.hpp"
 #include "albedo/texture/perlin_texture.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -39,6 +43,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -567,7 +572,8 @@ private:
             statement.fail(std::format("material {} is already defined", quoted(name)));
         }
         const std::string_view type{statement.word("a material type")};
-        materials.emplace(std::string{name}, materialOfType(statement, type));
+        materials.emplace(std::string{name},
+                          type == "mix" ? readMix(statement) : materialOfType(statement, type));
     }
 
     static Material materialOfType(Statement& statement, std::string_view type)
@@ -707,6 +713,59 @@ private:
             return true;
         });
         return DielectricMaterial{.ior = statement.required(ior, "ior"), .roughness = roughness};
+    }
+
+    // Mixes two materials defined earlier, neither of them a mix itself.
+    [[nodiscard]] Material readMix(Statement& statement) const
+    {
+        std::optional<BasicMaterial> first;
+        std::optional<BasicMaterial> second;
+        std::optional<Real> scale;
+        Real veins{0};
+        Real threshold{0.5};
+        statement.readFields([&](std::string_view field) {
+            if (field == "first") {
+                first = basicMaterialNamed(statement);
+            } else if (field == "second") {
+                second = basicMaterialNamed(statement);
+            } else if (field == "scale") {
+                scale = statement.positive("the noise scale");
+            } else if (field == "veins") {
+                veins = statement.inRange("the veins", 0, max_perlin_veins);
+            } else if (field == "threshold") {
+                threshold = statement.inRange("the threshold", 0, 1);
+            } else {
+                return false;
+            }
+            return true;
+        });
+        return MixMaterial{.first = statement.required(first, "first"),
+                           .second = statement.required(second, "second"),
+                           .pattern = {.scale = statement.required(scale, "scale"), .veins = veins},
+                           .threshold = threshold};
+    }
+
+    // The material named by the next word, which must not be a mix: mixes hold
+    // only basic materials.
+    [[nodiscard]] BasicMaterial basicMaterialNamed(Statement& statement) const
+    {
+        const std::string_view name{statement.peek().value_or("")};
+        const Material& material{materialNamed(statement)};
+        if (std::holds_alternative<MixMaterial>(material)) {
+            statement.fail(std::format("material {} is a mix, and a mix cannot hold another mix",
+                                       quoted(name)));
+        }
+        return std::visit(
+            [](const auto& alternative) -> BasicMaterial {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(alternative)>,
+                                             MixMaterial>) {
+                    assert(false && "mixes are rejected before the visit");
+                    return {};
+                } else {
+                    return alternative;
+                }
+            },
+            material);
     }
 
     // The material named by the next word.

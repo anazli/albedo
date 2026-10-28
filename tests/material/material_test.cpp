@@ -27,6 +27,7 @@ concept CanFormMaterialVariant = requires { typename MaterialVariant<Materials..
 TEST(MaterialTest, typeWithoutScatteringIsNotAMaterial)
 {
     static_assert(MaterialLike<DiffuseMaterial>);
+    static_assert(MaterialLike<MixMaterial>);
     static_assert(!MaterialLike<MaterialWithoutScattering>);
 }
 

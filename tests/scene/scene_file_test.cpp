@@ -246,6 +246,80 @@ TEST(SceneFileTest, readsPerlinVeins)
     expectNear(reflectanceAhead(description.scene), Rgb{0.5, 0.5, 0.5} * inv_pi);
 }
 
+TEST(SceneFileTest, readsAMixMaterial)
+{
+    // At (0, 0, -4), on the noise lattice, marble with scale 1 weighs 0.5: the
+    // second material at threshold 0.5, the first above it.
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material blue diffuse color 0.1 0.1 0.6\n"};
+    const SceneDescription at_threshold{readSceneText(
+        withCamera(materials + "material m mix first red second blue scale 1 veins 2\n"
+                               "sphere 0 0 -5 radius 1 material m\n"))};
+    const SceneDescription above{readSceneText(withCamera(
+        materials + "material m mix first red second blue scale 1 veins 2 threshold 0.6\n"
+                    "sphere 0 0 -5 radius 1 material m\n"))};
+
+    expectNear(reflectanceAhead(at_threshold.scene), Rgb{0.1, 0.1, 0.6} * inv_pi);
+    expectNear(reflectanceAhead(above.scene), Rgb{0.6, 0.1, 0.1} * inv_pi);
+}
+
+TEST(SceneFileTest, rejectsMixMaterialsThatCannotBeBuilt)
+{
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material blue diffuse color 0.1 0.1 0.6\n"};
+    for (const std::string_view statement :
+         {"material m mix first red second green scale 1",
+          "material m mix first red second red scale 0",
+          "material m mix first red second blue scale 1 veins -1",
+          "material m mix first red second blue scale 1 threshold 1.5",
+          "material m mix first red second blue scale 1 threshold -0.1",
+          "material m mix first red scale 1", "material m mix second blue scale 1",
+          "material m mix first red second blue", "material m mix first 1red second blue scale 1",
+          "material m mix first red second blue scale 1 veins 101",
+          "material m mix first red second blue scale 1 threshold nan",
+          "material m mix first red second blue scale 1 threshold inf",
+          "material m mix first red second blue scale 1 colour 1",
+          "material m mix first m second red scale 1"}) {
+        EXPECT_EQ(errorLine(withCamera(materials + std::string{statement} + "\n")), 4U)
+            << "statement: " << statement;
+    }
+}
+
+TEST(SceneFileTest, rejectsAMixAsEitherMaterialOfAMix)
+{
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material m mix first red second red scale 1\n"};
+
+    EXPECT_EQ(errorLine(withCamera(materials + "material n mix first m second red scale 1\n")), 4U);
+    EXPECT_EQ(errorLine(withCamera(materials + "material n mix first red second m scale 1\n")), 4U);
+}
+
+TEST(SceneFileTest, namesTheMixThatCannotBeMixed)
+{
+    const std::string message{
+        errorMessage(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                "material m mix first red second red scale 1\n"
+                                "material n mix first m second red scale 1\n"))};
+
+    EXPECT_NE(message.find("material 'm' is a mix"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, mixMayUseOneMaterialTwice)
+{
+    EXPECT_EQ(errorLine(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                   "material m mix first red second red scale 1\n")),
+              no_error);
+}
+
+TEST(SceneFileTest, mixAcceptsThresholdsAtTheEdges)
+{
+    EXPECT_EQ(errorLine(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                   "material blue diffuse color 0.1 0.1 0.6\n"
+                                   "material m mix first red second blue scale 1 threshold 0\n"
+                                   "material n mix first red second blue scale 1 threshold 1\n")),
+              no_error);
+}
+
 TEST(SceneFileTest, readsAConductorMaterial)
 {
     // A smooth conductor mirrors: the sample from straight on comes straight back.
