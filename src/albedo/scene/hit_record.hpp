@@ -15,8 +15,13 @@ struct HitRecord {
     Real t{};
     /// Hit position in world space.
     Point3r point{};
-    /// Unit normal facing against the incoming ray, whichever side was hit.
+    /// Unit geometric normal facing against the incoming ray, whichever side was
+    /// hit. Decides which side of the surface a direction leaves on.
     Normal3r normal{};
+    /// Unit normal that scattering is oriented around, flipped with `normal` so it
+    /// lies on the same side of the surface as far as the shape allows; see
+    /// `ShapeHit::shading_normal`.
+    Normal3r shading_normal{};
     /// True when the ray hit the outside of the surface (its normal pointed at the ray).
     bool front_face{};
     /// Texture coordinates of the hit position, as the shape hit defines them.

@@ -20,13 +20,14 @@ struct ConductorMaterial {
     /// 0.01 gives a perfect mirror (see `ConductorLobe::smooth_alpha`).
     Real roughness{};
 
-    /// Conductor scattering around the hit's normal. Roughness is squared into
-    /// the GGX width, which spreads perceived roughness evenly over [0, 1]
+    /// Conductor scattering around the hit's shading normal. Roughness is squared
+    /// into the GGX width, which spreads perceived roughness evenly over [0, 1]
     /// (Burley, "Physically-Based Shading at Disney", SIGGRAPH 2012 course).
-    /// Precondition: the normal has unit length.
+    /// Precondition: the shading normal has unit length.
     [[nodiscard]] Scattering scatteringAt(const HitRecord& hit) const noexcept
     {
-        return {ConductorLobe{.eta = eta, .k = k, .alpha = roughness * roughness}, hit.normal};
+        return {ConductorLobe{.eta = eta, .k = k, .alpha = roughness * roughness},
+                {.shading = hit.shading_normal, .geometric = hit.normal}};
     }
 };
 

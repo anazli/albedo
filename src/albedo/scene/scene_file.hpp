@@ -76,7 +76,7 @@ struct SceneDescription {
 ///     sphere X Y Z  radius R  material NAME
 ///     point_light X Y Z  intensity R G B
 ///     area_light X Y Z  radius R  radiance R G B  [material NAME]
-///     mesh NAME PATH
+///     mesh NAME PATH  [smooth]
 ///     instance MESH material NAME  [OPERATION...]
 ///
 /// `up` defaults to +y and `fov` to 60 degrees; roughness defaults to 0; an
@@ -103,7 +103,9 @@ struct SceneDescription {
 /// regular file still inside `base_directory` once symbolic links are resolved.
 /// So a scene can only read meshes kept beside it, though the check cannot stop
 /// the directory being changed between the check and the opening of the file.
-/// A mesh needs at least one triangle with area. `instance` places a mesh, which any
+/// A mesh needs at least one triangle with area; `smooth` shades it with
+/// normals averaged at its vertices (see `TriangleMesh::smoothNormals`) rather
+/// than with each triangle's own. `instance` places a mesh, which any
 /// number of instances share, with a material and up to
 /// `limits.max_instance_operations` operations applied in the order written:
 ///

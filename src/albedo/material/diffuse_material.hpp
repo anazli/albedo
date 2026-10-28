@@ -13,12 +13,13 @@ struct DiffuseMaterial {
     /// `LambertLobe::albedo`. Black by default.
     Texture albedo;
 
-    /// Lambertian scattering around the hit's normal, with the albedo the texture
-    /// gives at the hit. Precondition: the normal has unit length. Throws only what
-    /// `evaluate(const Texture&, ...)` throws.
+    /// Lambertian scattering around the hit's shading normal, with the albedo the
+    /// texture gives at the hit. Precondition: the shading normal has unit length.
+    /// Throws only what `evaluate(const Texture&, ...)` throws.
     [[nodiscard]] Scattering scatteringAt(const HitRecord& hit) const
     {
-        return {LambertLobe{.albedo = evaluate(albedo, hit)}, hit.normal};
+        return {LambertLobe{.albedo = evaluate(albedo, hit)},
+                {.shading = hit.shading_normal, .geometric = hit.normal}};
     }
 };
 

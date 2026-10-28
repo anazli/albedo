@@ -1,6 +1,7 @@
 #include "albedo/geometry/triangle_mesh.hpp"
 
 #include "support/expect_near.hpp"
+#include "support/tent_mesh.hpp"
 
 #include <gtest/gtest.h>
 
@@ -249,6 +250,78 @@ TEST(TriangleMeshTest, allowsTextureCoordinatesWithoutFaces)
 
     EXPECT_EQ(mesh.textureCoordinates().size(), 1U);
     EXPECT_TRUE(mesh.triangles().empty());
+}
+
+TEST(TriangleMeshTest, smoothNormalsOfAFlatMeshAreItsNormal)
+{
+    const auto normals{unitSquare().smoothNormals()};
+
+    ASSERT_EQ(normals.size(), 2U);
+    for (const auto& corners : normals) {
+        for (const Normal3r normal : corners) {
+            expectNear(normal, Normal3r{0.0, 0.0, 1.0}, exact_tolerance);
+        }
+    }
+}
+
+TEST(TriangleMeshTest, smoothNormalsAverageTheTrianglesSharingAPosition)
+{
+    const auto normals{test_support::tentMesh().smoothNormals()};
+    const Normal3r left{normalized(Normal3r{-1.0, 1.0, 0.0})};
+    const Normal3r right{normalized(Normal3r{1.0, 1.0, 0.0})};
+    const Normal3r up{0.0, 1.0, 0.0};
+
+    ASSERT_EQ(normals.size(), 4U);
+    // Face {2, 3, 1}: two left eave corners, then a ridge corner.
+    expectNear(normals[0][0], left);
+    expectNear(normals[0][1], left);
+    expectNear(normals[0][2], up);
+    // Face {1, 5, 4}: a ridge corner, then two right eave corners.
+    expectNear(normals[3][0], up);
+    expectNear(normals[3][1], right);
+    expectNear(normals[3][2], right);
+}
+
+TEST(TriangleMeshTest, smoothNormalsWeighTrianglesByArea)
+{
+    // Two triangles share the edge from position 0 to 1: a large one facing +z
+    // and a small one facing +x, so the shared corners lean mostly towards +z.
+    const TriangleMesh mesh{{{0.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {-3.0, 0.0, 0.0}, {0.0, 0.0, 1.0}},
+                            {{0, 1, 2}, {0, 1, 3}}};
+
+    const auto normals{mesh.smoothNormals()};
+
+    // Edge cross products (0, 0, 3) and (1, 0, 0), summed and normalized; the
+    // corner only the large triangle uses keeps its normal.
+    expectNear(normals[0][0], normalized(Normal3r{1.0, 0.0, 3.0}));
+    expectNear(normals[0][1], normalized(Normal3r{1.0, 0.0, 3.0}));
+    expectNear(normals[0][2], Normal3r{0.0, 0.0, 1.0});
+    expectNear(normals[1][2], Normal3r{1.0, 0.0, 0.0});
+}
+
+TEST(TriangleMeshTest, smoothNormalsSkipTheFacesThatTrianglesSkips)
+{
+    const TriangleMesh mesh{{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}},
+                            {{0, 0, 1}, {0, 1, 2}, {0, 2, 3}}};
+
+    EXPECT_EQ(mesh.smoothNormals().size(), mesh.triangles().size());
+}
+
+TEST(TriangleMeshTest, cornersWhoseNormalsCancelTakeTheirTrianglesNormal)
+{
+    // The same triangle wound both ways: every position's normals cancel.
+    const TriangleMesh mesh{{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}},
+                            {{0, 1, 2}, {0, 2, 1}}};
+
+    const auto normals{mesh.smoothNormals()};
+
+    ASSERT_EQ(normals.size(), 2U);
+    for (const Normal3r normal : normals[0]) {
+        expectNear(normal, Normal3r{0.0, 0.0, 1.0}, exact_tolerance);
+    }
+    for (const Normal3r normal : normals[1]) {
+        expectNear(normal, Normal3r{0.0, 0.0, -1.0}, exact_tolerance);
+    }
 }
 
 } // namespace

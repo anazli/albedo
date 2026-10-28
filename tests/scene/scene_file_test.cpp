@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -888,6 +889,48 @@ TEST(SceneFileTest, groundStandsTheInstanceOnTheFloor)
     const Ray down{.origin = {0.5, 5.0, 0.5}, .direction = {0.0, -1.0, 0.0}};
 
     EXPECT_NEAR(requireValue(hitDistance(description.scene, down)), 5.0, default_tolerance);
+}
+
+// The tent of `test_support::tentMesh` as an OBJ file: its ridge shades with +y
+// when smooth, and its slopes lean 45 degrees either way.
+constexpr std::string_view tent_obj{"v 0 0 -10\nv 0 0 10\nv -10 -10 -10\nv -10 -10 10\n"
+                                    "v 10 -10 -10\nv 10 -10 10\n"
+                                    "f 3 4 2\nf 3 2 1\nf 1 2 5\nf 2 6 5\n"};
+constexpr Ray onto_the_ridge{.origin = {0.0, 5.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+
+// The shading normal where `onto_the_ridge` hits a tent read with `mesh_line`
+// from a directory holding the tent and the square.
+Normal3r ridgeShadingNormal(const SquareDirectory& directory, std::string_view mesh_line)
+{
+    static_cast<void>(directory.get().write("tent.obj", tent_obj));
+    const SceneDescription description{
+        directory.read(withSquare(std::string{mesh_line} + "instance tent material red\n"))};
+    return requireValue(description.scene.intersect(onto_the_ridge, positive_t)).shading_normal;
+}
+
+TEST(SceneFileTest, meshesAreFlatByDefault)
+{
+    const SquareDirectory directory{"flat_mesh"};
+
+    const Normal3r normal{ridgeShadingNormal(directory, "mesh tent tent.obj\n")};
+
+    EXPECT_NEAR(std::abs(normal.x), std::sqrt(0.5), default_tolerance);
+}
+
+TEST(SceneFileTest, smoothMeshesShadeWithAveragedNormals)
+{
+    const SquareDirectory directory{"smooth_mesh"};
+
+    expectNear(ridgeShadingNormal(directory, "mesh tent tent.obj smooth\n"),
+               Normal3r{0.0, 1.0, 0.0});
+}
+
+TEST(SceneFileTest, rejectsUnknownWordsAfterAMeshPath)
+{
+    const SquareDirectory directory{"mesh_extra"};
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq square.obj smoothly\n")), 2U);
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq square.obj smooth smooth\n")), 2U);
 }
 
 TEST(SceneFileTest, instancesOfOneMeshShareItsGeometry)

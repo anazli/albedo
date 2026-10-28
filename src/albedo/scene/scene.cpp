@@ -125,6 +125,8 @@ std::optional<HitRecord> Scene::intersect(const Ray& ray, Interval t_range) cons
     return HitRecord{.t = nearest->t,
                      .point = nearest->point,
                      .normal = front_face ? nearest->normal : -nearest->normal,
+                     .shading_normal =
+                         front_face ? nearest->shading_normal : -nearest->shading_normal,
                      .front_face = front_face,
                      .uv = albedo::textureCoordinatesAt(objects[*nearest_object].shape, *nearest),
                      .object = *nearest_object};

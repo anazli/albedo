@@ -97,7 +97,7 @@ Rgb sampleDirectLight(const Scene& scene, const HitRecord& hit, const Scattering
                           ? Real{1}
                           : powerHeuristic({.chosen = light_pdf,
                                             .other = scattering.pdf(wo, sample->direction)})};
-    const Real cos_theta{std::abs(dot(sample->direction, hit.normal))};
+    const Real cos_theta{std::abs(dot(sample->direction, hit.shading_normal))};
     return f * sample->radiance * (cos_theta * weight / light_pdf);
 }
 

@@ -8,7 +8,7 @@ namespace albedo {
 
 class SampleGenerator;
 
-/// A debugging view rather than physical light: colors each hit by its surface
+/// A debugging view rather than physical light: colors each hit by its shading
 /// normal (each axis from [-1, 1] mapped to a channel in [0, 1]), and rays that
 /// miss everything by a white-to-blue sky gradient.
 struct NormalsEstimator {

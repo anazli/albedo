@@ -99,5 +99,83 @@ TEST(ScatteringTest, sampleForwardsTheChoiceNumber)
     EXPECT_LT(dot(normal, refracted.direction), 0.0);
 }
 
+// A shading normal leaning about 63 degrees towards +x off a geometric normal +z.
+const Normal3r geometric_up{0.0, 0.0, 1.0};
+const Normal3r leaning{normalized(Normal3r{2.0, 0.0, 1.0})};
+const SurfaceNormals leaning_normals{.shading = leaning, .geometric = geometric_up};
+const Scattering leaning_scattering{LambertLobe{.albedo = albedo}, leaning_normals};
+// Above both the geometric surface and the shading frame.
+const Vector3r above_both{normalized(Vector3r{0.3, 0.2, 1.0})};
+// Above the shading frame but below the geometric surface, and the reverse.
+const Vector3r below_surface{normalized(Vector3r{1.0, 0.0, -0.2})};
+const Vector3r below_frame{normalized(Vector3r{-1.0, 0.0, 0.2})};
+
+TEST(ScatteringTest, leaningShadingNormalOrientsTheLobe)
+{
+    EXPECT_NEAR(leaning_scattering.pdf(above_both, above_both), dot(leaning, above_both) * inv_pi,
+                default_tolerance);
+    expectNear(leaning_scattering.evaluate(above_both, above_both), albedo * inv_pi);
+}
+
+TEST(ScatteringTest, directionsCrossingTheActualSurfaceScatterNothing)
+{
+    for (const Vector3r crossing : {below_surface, below_frame}) {
+        EXPECT_TRUE(isBlack(leaning_scattering.evaluate(above_both, crossing)));
+        EXPECT_TRUE(isBlack(leaning_scattering.evaluate(crossing, above_both)));
+        // Exactly zero: the directions are rejected, not merely unlikely.
+        EXPECT_EQ(leaning_scattering.pdf(above_both, crossing), 0.0);
+        EXPECT_EQ(leaning_scattering.pdf(crossing, above_both), 0.0);
+    }
+}
+
+TEST(ScatteringTest, viewerAcrossTheActualSurfaceGetsNoSample)
+{
+    EXPECT_FALSE(leaning_scattering.sample(below_surface, 0.5, {0.3, 0.8}).has_value());
+    EXPECT_FALSE(leaning_scattering.sample(below_frame, 0.5, {0.3, 0.8}).has_value());
+}
+
+TEST(ScatteringTest, sampleLeavingThroughTheActualSurfaceIsDiscarded)
+{
+    // Mirrored about the leaning normal, straight up reflects to (0.8, 0, -0.6):
+    // in front of the shading frame, but below the actual surface.
+    const Scattering mirror{
+        ConductorLobe{.eta = {1.0, 1.0, 1.0}, .k = {1.0, 1.0, 1.0}, .alpha = 0.0}, leaning_normals};
+
+    EXPECT_FALSE(mirror.sample(asVector(geometric_up), 0.5, {0.5, 0.5}).has_value());
+}
+
+TEST(ScatteringTest, sampleStayingInFrontOfBothIsKept)
+{
+    // The centre of the unit square maps onto the shading normal itself.
+    const ScatterSample sample{
+        requireValue(leaning_scattering.sample(above_both, 0.5, {0.5, 0.5}))};
+
+    EXPECT_GT(dot(sample.direction, leaning), 0.0);
+    EXPECT_GT(dot(sample.direction, geometric_up), 0.0);
+}
+
+TEST(ScatteringTest, roughGlassTransmitsNothingBackOutThroughTheActualSurface)
+{
+    // Seen along the shading normal, very rough glass transmits light arriving
+    // from `below_frame`, behind the shading frame; but that direction is in
+    // front of the actual surface, so the light would come from outside.
+    const DielectricLobe lobe{.eta = 1.5, .alpha = 0.6};
+    const OrthonormalBasis basis{OrthonormalBasis::fromNormal(leaning)};
+    const Scattering glass{lobe, leaning_normals};
+    const Vector3r wo{asVector(leaning)};
+
+    ASSERT_FALSE(isBlack(evaluate(lobe, basis.toLocal(wo), basis.toLocal(below_frame))));
+    EXPECT_TRUE(isBlack(glass.evaluate(wo, below_frame)));
+    EXPECT_EQ(glass.pdf(wo, below_frame), 0.0);
+}
+
+TEST(ScatteringTest, smoothGlassReflectionLeavingThroughTheActualSurfaceIsDiscarded)
+{
+    // As for the mirror: a low choice number reflects, to below the surface.
+    const Scattering glass{DielectricLobe{.eta = 1.5, .alpha = 0.0}, leaning_normals};
+
+    EXPECT_FALSE(glass.sample(asVector(geometric_up), 0.0, {0.5, 0.5}).has_value());
+}
+
 } // namespace
 } // namespace albedo

@@ -7,6 +7,7 @@
 #include "albedo/material/material.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
+#include "support/tent_mesh.hpp"
 
 #include <gtest/gtest.h>
 
@@ -105,6 +106,41 @@ TEST(SceneTest, hitFromInsideIsBackFaceWithNormalFacingTheRay)
     EXPECT_FALSE(hit.front_face);
     // The outward normal is -z there; flipped, it faces back against the ray.
     expectNear(hit.normal, Normal3r{0.0, 0.0, 1.0});
+}
+
+// The tent shaded smoothly, whose ridge shades with +y while its slopes lean
+// 45 degrees either way.
+MeshInstance smoothTent()
+{
+    return MeshInstance{
+        std::make_shared<const MeshGeometry>(test_support::tentMesh(), MeshShading::Smooth),
+        Transform{}};
+}
+
+TEST(SceneTest, frontHitKeepsTheShadingNormal)
+{
+    Scene scene;
+    scene.add(smoothTent(), matte);
+    const Ray from_above{.origin = {0.0, 5.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(from_above, positive_t))};
+
+    EXPECT_TRUE(hit.front_face);
+    expectNear(hit.shading_normal, Normal3r{0.0, 1.0, 0.0});
+    EXPECT_GT(hit.normal.y, 0.0);
+}
+
+TEST(SceneTest, backHitFlipsTheShadingNormalWithTheNormal)
+{
+    Scene scene;
+    scene.add(smoothTent(), matte);
+    const Ray from_below{.origin = {0.0, -5.0, 0.0}, .direction = {0.0, 1.0, 0.0}};
+
+    const HitRecord hit{requireValue(scene.intersect(from_below, positive_t))};
+
+    EXPECT_FALSE(hit.front_face);
+    expectNear(hit.shading_normal, Normal3r{0.0, -1.0, 0.0});
+    EXPECT_LT(hit.normal.y, 0.0);
 }
 
 TEST(SceneTest, normalAlwaysOpposesTheRayDirection)

@@ -96,7 +96,9 @@ instance knot material gold  fit 2.6  rotate 0 1 0 20  ground  translate 0.1 0 -
 
 Materials are `diffuse`, `checker`, `perlin` (solid noise between two colors, cloudy or with
 marble `veins`), `conductor`, `dielectric` and `mix` (two of the others laid out by a Perlin
-pattern, such as silver with porcelain veins). An `instance` places a mesh with
+pattern, such as silver with porcelain veins). `mesh NAME PATH smooth` shades a mesh with normals
+averaged at its vertices, hiding the facets of meshes that approximate curved surfaces (hard edges
+are rounded off too). An `instance` places a mesh with
 operations applied in the order written: `translate`, `scale`, `rotate`, `fit` (scale to a size)
 and `ground` (stand on y = 0). The full grammar and the range each value must lie in are
 documented on `readScene` in
@@ -108,7 +110,7 @@ reports the first problem it finds, with its line number where there is one. A `
 a regular file inside the scene's own directory: absolute paths, `..`, links leading out and Windows
 device names are rejected. The OBJ reader uses vertex positions, texture coordinates and faces,
 splitting polygons into triangles, and ignores everything else, including normals and materials, so
-coarse meshes look faceted.
+coarse meshes look faceted unless shaded `smooth`.
 
 ## Tests
 

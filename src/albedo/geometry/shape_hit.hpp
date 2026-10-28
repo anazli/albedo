@@ -15,6 +15,11 @@ struct ShapeHit {
     Point3r point{};
     /// Unit normal pointing out of the shape, whichever side the ray came from.
     Normal3r normal{};
+    /// Unit normal that shading orients scattering around: `normal` itself for
+    /// flat surfaces, or one interpolated from vertex normals so that a mesh of
+    /// flat triangles shades as a smooth surface. It may lean away from `normal`,
+    /// even past perpendicular for a badly formed mesh.
+    Normal3r shading_normal{};
     /// Texture coordinates of the hit position, filled in only by shapes that find
     /// them while intersecting; others compute them on request, so only the hit
     /// finally kept pays for them. Code outside the shapes reads them through

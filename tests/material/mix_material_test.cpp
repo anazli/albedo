@@ -23,8 +23,11 @@ const DiffuseMaterial second_material{.albedo = ConstantTexture{.color = second_
 
 // A hit on the noise lattice, where clouds weigh 0 and marble with scale 1
 // weighs 0.5.
-const HitRecord lattice_hit{
-    .t = 1.0, .point = {0.0, 2.0, -3.0}, .normal = {0.0, 0.0, 1.0}, .front_face = true};
+const HitRecord lattice_hit{.t = 1.0,
+                            .point = {0.0, 2.0, -3.0},
+                            .normal = {0.0, 0.0, 1.0},
+                            .shading_normal = {0.0, 0.0, 1.0},
+                            .front_face = true};
 const Vector3r up{0.0, 0.0, 1.0};
 
 // The diffuse reflectance the mix scatters with at `hit`.

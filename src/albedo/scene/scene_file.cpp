@@ -873,6 +873,10 @@ private:
             statement.fail(std::format("mesh {} is already defined", quoted(name)));
         }
         const std::string_view path{statement.word("a mesh file")};
+        const bool smooth{statement.peek() == "smooth"};
+        if (smooth) {
+            static_cast<void>(statement.next());
+        }
         statement.expectEnd();
         const TriangleMesh mesh{
             loadObj(statement, meshFile(statement, *base_directory, path), path)};
@@ -882,7 +886,8 @@ private:
         }
         std::shared_ptr<const MeshGeometry> geometry;
         try {
-            geometry = std::make_shared<const MeshGeometry>(mesh);
+            geometry = std::make_shared<const MeshGeometry>(mesh, smooth ? MeshShading::Smooth
+                                                                         : MeshShading::Flat);
         } catch (const std::invalid_argument& error) {
             statement.fail(std::format("mesh {}: {}", quoted(path), error.what()));
         }

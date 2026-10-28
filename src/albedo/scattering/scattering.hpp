@@ -13,13 +13,35 @@
 
 namespace albedo {
 
+/// The two normals of a surface point that scattering needs, named so they
+/// cannot be passed the wrong way round.
+struct SurfaceNormals {
+    /// The unit normal the lobe is oriented around.
+    Normal3r shading{};
+    /// The actual surface's normal; it need not have unit length.
+    Normal3r geometric{};
+};
+
 /// How light scatters at one surface point: a lobe placed in the local frame
-/// of the point's normal. Takes and returns world-space unit directions, with
-/// `wo` pointing towards the viewer and `wi` towards the light.
+/// of the point's shading normal. Takes and returns world-space unit directions,
+/// with `wo` pointing towards the viewer and `wi` towards the light.
+///
+/// A shading normal leaning away from the geometric one leaves directions that
+/// lie on one side of the actual surface but the other side of the shading
+/// frame. Those scatter nothing: `evaluate` and `pdf` give zero when `wo` or
+/// `wi` is one, and `sample` gives nothing. Otherwise light reflected in the
+/// shading frame could leave through the surface, or light from behind it could
+/// arrive as if from the front.
 class Scattering {
 public:
-    /// Orients `lobe` around `normal`. Precondition: `normal` has unit length.
+    /// Orients `lobe` around `normal`, which is also the geometric normal.
+    /// Precondition: `normal` has unit length.
     Scattering(Lobe lobe, Normal3r normal) noexcept;
+
+    /// Orients `lobe` around `normals.shading` on a surface whose actual normal is
+    /// `normals.geometric`. Precondition: `normals.shading` has unit length, and
+    /// `normals.geometric` is not zero.
+    Scattering(Lobe lobe, SurfaceNormals normals) noexcept;
 
     /// The scattering function f(wo, wi), without the cosine factor.
     /// Throws only what `evaluate(const Lobe&, ...)` throws.
@@ -36,8 +58,13 @@ public:
     [[nodiscard]] Real pdf(Vector3r wo, Vector3r wi) const;
 
 private:
+    // True when `direction` lies on different sides of the shading frame and the
+    // geometric surface. Never true when the two normals are the same.
+    [[nodiscard]] bool crossesSurface(Vector3r direction) const noexcept;
+
     Lobe lobe;
     OrthonormalBasis basis;
+    Normal3r geometric;
 };
 
 } // namespace albedo

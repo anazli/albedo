@@ -17,13 +17,15 @@ struct DielectricMaterial {
     /// `ConductorMaterial`; anything below about 0.01 is perfectly smooth.
     Real roughness{};
 
-    /// Dielectric scattering around the hit's normal. A ray hitting the outside
-    /// enters the material, one hitting the inside leaves it, so the index ratio
-    /// inverts on back faces. Precondition: the normal has unit length.
+    /// Dielectric scattering around the hit's shading normal. A ray hitting the
+    /// outside enters the material, one hitting the inside leaves it, so the index
+    /// ratio inverts on back faces. Precondition: the shading normal has unit
+    /// length.
     [[nodiscard]] Scattering scatteringAt(const HitRecord& hit) const noexcept
     {
         const Real eta{hit.front_face ? ior : 1 / ior};
-        return {DielectricLobe{.eta = eta, .alpha = roughness * roughness}, hit.normal};
+        return {DielectricLobe{.eta = eta, .alpha = roughness * roughness},
+                {.shading = hit.shading_normal, .geometric = hit.normal}};
     }
 };
 

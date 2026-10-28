@@ -1,9 +1,15 @@
 #include "albedo/estimator/normals_estimator.hpp"
 
+#include "albedo/core/transform.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/mesh_instance.hpp"
 #include "albedo/material/material.hpp"
 #include "support/expect_near.hpp"
+#include "support/tent_mesh.hpp"
 
 #include <gtest/gtest.h>
+
+#include <memory>
 
 namespace albedo {
 namespace {
@@ -41,6 +47,19 @@ TEST(NormalsEstimatorTest, normalShownIsTheOneFacingTheRay)
     scene.add(Sphere{Point3r{0.0, 0.0, 0.0}, 2.0}, matte);
 
     expectNear(NormalsEstimator::radiance(down_minus_z, scene), Rgb{0.5, 0.5, 1.0});
+}
+
+TEST(NormalsEstimatorTest, smoothMeshShowsItsShadingNormal)
+{
+    // The smooth tent's ridge shades with +y, (0.5, 1, 0.5), though its slopes lean.
+    Scene scene;
+    scene.add(MeshInstance{std::make_shared<const MeshGeometry>(test_support::tentMesh(),
+                                                                MeshShading::Smooth),
+                           Transform{}},
+              matte);
+    const Ray from_above{.origin = {0.0, 5.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+
+    expectNear(NormalsEstimator::radiance(from_above, scene), Rgb{0.5, 1.0, 0.5});
 }
 
 TEST(NormalsEstimatorTest, ignoresShapesBehindTheRayOrigin)

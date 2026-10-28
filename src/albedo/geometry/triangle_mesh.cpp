@@ -1,5 +1,7 @@
 #include "albedo/geometry/triangle_mesh.hpp"
 
+#include "albedo/core/vector3.hpp"
+
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -83,6 +85,41 @@ std::vector<Triangle> TriangleMesh::triangles() const
         if (formsTriangle(p0, p1, p2)) {
             result.emplace_back(p0, p1, p2, textureCoordinatesOf(face));
         }
+    }
+    return result;
+}
+
+std::vector<std::array<Normal3r, 3>> TriangleMesh::smoothNormals() const
+{
+    // The cross product of two edges has twice the triangle's area as its length,
+    // so summing them unnormalized weighs each triangle by its area.
+    std::vector<Vector3r> sums(vertex_positions.size());
+    for (const auto& [i0, i1, i2] : face_list) {
+        const Point3r p0{vertex_positions[i0]};
+        const Point3r p1{vertex_positions[i1]};
+        const Point3r p2{vertex_positions[i2]};
+        if (formsTriangle(p0, p1, p2)) {
+            const Vector3r area_normal{cross(p1 - p0, p2 - p0)};
+            sums[i0] += area_normal;
+            sums[i1] += area_normal;
+            sums[i2] += area_normal;
+        }
+    }
+    std::vector<std::array<Normal3r, 3>> result;
+    result.reserve(face_list.size());
+    for (const auto& [i0, i1, i2] : face_list) {
+        const Point3r p0{vertex_positions[i0]};
+        const Point3r p1{vertex_positions[i1]};
+        const Point3r p2{vertex_positions[i2]};
+        if (!formsTriangle(p0, p1, p2)) {
+            continue;
+        }
+        const Normal3r face_normal{asNormal(normalized(cross(p1 - p0, p2 - p0)))};
+        const auto corner_normal{[&](std::size_t index) {
+            const Vector3r sum{sums[index]};
+            return std::isnormal(lengthSquared(sum)) ? asNormal(normalized(sum)) : face_normal;
+        }};
+        result.push_back({corner_normal(i0), corner_normal(i1), corner_normal(i2)});
     }
     return result;
 }

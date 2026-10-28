@@ -168,13 +168,31 @@ std::optional<ShapeHit> Triangle::intersect(const Ray& ray, Interval t_range) co
     const Real b2{w / determinant};
     const Point3r point{corners[0] + (corners[1] - corners[0]) * b1 +
                         (corners[2] - corners[0]) * b2};
-    return ShapeHit{
-        .t = t, .point = point, .normal = front_normal, .uv = interpolated(corner_uv, b0, b1, b2)};
+    return ShapeHit{.t = t,
+                    .point = point,
+                    .normal = front_normal,
+                    .shading_normal = front_normal,
+                    .uv = interpolated(corner_uv, b0, b1, b2)};
 }
 
 Bounds3r Triangle::bounds() const noexcept
 {
     return merged(merged(merged(Bounds3r{}, corners[0]), corners[1]), corners[2]);
+}
+
+std::array<Real, 3> Triangle::barycentricCoordinatesOf(Point3r point) const noexcept
+{
+    // Each weight is the area of the sub-triangle opposite its vertex, signed by
+    // its orientation, over the whole area. The denominator is the squared length
+    // that `formsTriangle` checked, so it is a positive normal number.
+    const Vector3r edge1{corners[1] - corners[0]};
+    const Vector3r edge2{corners[2] - corners[0]};
+    const Vector3r offset{point - corners[0]};
+    const Vector3r area_normal{cross(edge1, edge2)};
+    const Real area_squared{lengthSquared(area_normal)};
+    const Real b1{dot(cross(offset, edge2), area_normal) / area_squared};
+    const Real b2{dot(cross(edge1, offset), area_normal) / area_squared};
+    return {1 - b1 - b2, b1, b2};
 }
 
 bool formsTriangle(Point3r p0, Point3r p1, Point3r p2) noexcept

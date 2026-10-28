@@ -6,6 +6,7 @@
 #include "albedo/core/point2.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/core/ray.hpp"
+#include "albedo/core/real.hpp"
 #include "albedo/geometry/shape_hit.hpp"
 
 #include <array>
@@ -49,7 +50,8 @@ public:
     /// identical vertex values, as triangles built from one indexed mesh do. A ray
     /// whose direction has a zero, subnormal or non-finite squared length never hits,
     /// and neither does a ray with a non-finite origin. The hit's texture
-    /// coordinates interpolate those of the vertices.
+    /// coordinates interpolate those of the vertices; its shading normal is
+    /// `normal()`.
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray,
                                                     Interval t_range) const noexcept;
 
@@ -61,6 +63,12 @@ public:
 
     /// The axis-aligned box enclosing the triangle.
     [[nodiscard]] Bounds3r bounds() const noexcept;
+
+    /// The weights of the vertices, in vertex order and summing to 1 up to
+    /// rounding, that place `point` on the triangle; for a point off its plane,
+    /// those of the point's projection onto it. Points outside the triangle get
+    /// a negative weight.
+    [[nodiscard]] std::array<Real, 3> barycentricCoordinatesOf(Point3r point) const noexcept;
 
 private:
     // Declared before `corner_uv` so bad vertices are reported before bad uv.

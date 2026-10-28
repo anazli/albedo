@@ -396,5 +396,55 @@ TEST(TriangleTest, rejectsNonFiniteTextureCoordinates)
                  std::invalid_argument);
 }
 
+TEST(TriangleTest, hitShadesWithTheFaceNormal)
+{
+    const Triangle triangle{facingTriangle()};
+    const Ray ray{.origin = {0.0, 0.0, 0.0}, .direction = {0.0, -0.1, -1.0}};
+
+    const ShapeHit hit{requireValue(triangle.intersect(ray, positive_t))};
+
+    // Exactly equal: shading code may rely on flat hits having one normal.
+    EXPECT_EQ(hit.shading_normal, triangle.normal());
+}
+
+TEST(TriangleTest, barycentricCoordinatesOfAVertexSelectIt)
+{
+    const Triangle triangle{facingTriangle()};
+
+    const auto [b0, b1, b2]{triangle.barycentricCoordinatesOf({1.0, -1.0, -5.0})};
+
+    EXPECT_NEAR(b0, 0.0, default_tolerance);
+    EXPECT_NEAR(b1, 1.0, default_tolerance);
+    EXPECT_NEAR(b2, 0.0, default_tolerance);
+}
+
+TEST(TriangleTest, barycentricCoordinatesMatchTheTextureInterpolation)
+{
+    // (0, -0.5, -5) weighs the vertices 0.25, 0.5 and 0.25, as in
+    // hitInterpolatesTheTextureCoordinates.
+    const auto [b0, b1, b2]{facingTriangle().barycentricCoordinatesOf({0.0, -0.5, -5.0})};
+
+    EXPECT_NEAR(b0, 0.25, default_tolerance);
+    EXPECT_NEAR(b1, 0.5, default_tolerance);
+    EXPECT_NEAR(b2, 0.25, default_tolerance);
+}
+
+TEST(TriangleTest, barycentricCoordinatesProjectPointsOffThePlane)
+{
+    const auto [b0, b1, b2]{facingTriangle().barycentricCoordinatesOf({0.0, -0.5, 3.0})};
+
+    EXPECT_NEAR(b0, 0.25, default_tolerance);
+    EXPECT_NEAR(b1, 0.5, default_tolerance);
+    EXPECT_NEAR(b2, 0.25, default_tolerance);
+}
+
+TEST(TriangleTest, barycentricCoordinatesOfAPointOutsideIncludeANegativeWeight)
+{
+    const auto [b0, b1, b2]{facingTriangle().barycentricCoordinatesOf({2.0, 2.0, -5.0})};
+
+    EXPECT_LT(b0, 0.0);
+    EXPECT_NEAR(b0 + b1 + b2, 1.0, default_tolerance);
+}
+
 } // namespace
 } // namespace albedo
