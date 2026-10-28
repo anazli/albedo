@@ -69,6 +69,7 @@ struct SceneDescription {
 ///     sky nadir R G B  zenith R G B
 ///     material NAME diffuse color R G B
 ///     material NAME checker even R G B  odd R G B  frequency F
+///     material NAME perlin low R G B  high R G B  scale S  [veins V]
 ///     material NAME conductor eta R G B  k R G B  [roughness X]
 ///     material NAME dielectric ior X  [roughness X]
 ///     sphere X Y Z  radius R  material NAME
@@ -78,16 +79,15 @@ struct SceneDescription {
 ///     instance MESH material NAME  [OPERATION...]
 ///
 /// `up` defaults to +y and `fov` to 60 degrees; roughness defaults to 0; an area
-/// light without a material is black. Exactly one camera is required, and at
-/// most one sky is allowed (black if absent). A material must be defined before
-/// it is used. Numbers are as `parseReal` reads them, and must lie in ranges
-/// that keep rendering well defined: reflectances (`color`, `even`, `odd`) in
-/// [0, 1] per channel; emitted light (`sky`, `intensity`, `radiance`) in
-/// [0, 1e6]; `roughness` in [0, 1]; `ior` in [0.01, 100]; conductor `eta` in
-/// [0.001, 1000] and `k` in [0, 1000], with no channel having both eta 1 and k
-/// 0; `frequency` positive. Comments run from `#` to the end of a line; blank
-/// lines are ignored. Objects and lights are added to the scene in file order.
-/// Error messages quote at most 32 bytes of the input, with bytes outside
+/// light without a material is black; `veins` defaults to 0 (see `PerlinTexture`). Exactly one
+/// camera is required, and at most one sky is allowed (black if absent). A material must be defined
+/// before it is used. Numbers are as `parseReal` reads them, and must lie in ranges that keep
+/// rendering well defined: reflectances (`color`, `even`, `odd`, `low`, `high`) in [0, 1] per
+/// channel; emitted light (`sky`, `intensity`, `radiance`) in [0, 1e6]; `roughness` in [0, 1];
+/// `ior` in [0.01, 100]; conductor `eta` in [0.001, 1000] and `k` in [0, 1000], with no channel
+/// having both eta 1 and k 0; `frequency` and `scale` positive; `veins` in [0, 100]. Comments run
+/// from `#` to the end of a line; blank lines are ignored. Objects and lights are added to the
+/// scene in file order. Error messages quote at most 32 bytes of the input, with bytes outside
 /// printable ASCII escaped.
 ///
 /// `mesh` reads the Wavefront OBJ file at PATH (see `readObj`), resolved against

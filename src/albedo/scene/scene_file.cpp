@@ -19,6 +19,7 @@
 #include "albedo/material/material.hpp"
 #include "albedo/texture/checker_texture.hpp"
 #include "albedo/texture/constant_texture.hpp"
+#include "albedo/texture/perlin_texture.hpp"
 
 #include <algorithm>
 #include <array>
@@ -70,6 +71,8 @@ constexpr Real max_ior{1e2};
 constexpr Real min_conductor_eta{1e-3};
 constexpr Real max_conductor_eta{1e3};
 constexpr Real max_conductor_k{1e3};
+// Beyond this the marble bands warp into noise finer than any pixel.
+constexpr Real max_perlin_veins{1e2};
 
 // Longest piece of input an error message repeats.
 constexpr std::size_t max_quoted_length{32};
@@ -575,6 +578,9 @@ private:
         if (type == "checker") {
             return readChecker(statement);
         }
+        if (type == "perlin") {
+            return readPerlin(statement);
+        }
         if (type == "conductor") {
             return readConductor(statement);
         }
@@ -619,6 +625,32 @@ private:
             .albedo = CheckerTexture{.even = statement.required(even, "even"),
                                      .odd = statement.required(odd, "odd"),
                                      .frequency = statement.required(frequency, "frequency")}};
+    }
+
+    static Material readPerlin(Statement& statement)
+    {
+        std::optional<Rgb> low;
+        std::optional<Rgb> high;
+        std::optional<Real> scale;
+        Real veins{0};
+        statement.readFields([&](std::string_view field) {
+            if (field == "low") {
+                low = statement.reflectance("the low color");
+            } else if (field == "high") {
+                high = statement.reflectance("the high color");
+            } else if (field == "scale") {
+                scale = statement.positive("the noise scale");
+            } else if (field == "veins") {
+                veins = statement.inRange("the veins", 0, max_perlin_veins);
+            } else {
+                return false;
+            }
+            return true;
+        });
+        return DiffuseMaterial{.albedo = PerlinTexture{.low = statement.required(low, "low"),
+                                                       .high = statement.required(high, "high"),
+                                                       .scale = statement.required(scale, "scale"),
+                                                       .veins = veins}};
     }
 
     static Material readConductor(Statement& statement)

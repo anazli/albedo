@@ -65,6 +65,8 @@ add_executable(albedo_tests
     scene/scene_test.cpp
     texture/checker_texture_test.cpp
     texture/constant_texture_test.cpp
+    texture/perlin_noise_test.cpp
+    texture/perlin_texture_test.cpp
     texture/texture_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

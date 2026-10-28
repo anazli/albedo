@@ -225,6 +225,27 @@ TEST(SceneFileTest, readsACheckerMaterial)
     expectNear(reflectanceAhead(description.scene), Rgb{0.1, 0.2, 0.3} * inv_pi);
 }
 
+TEST(SceneFileTest, readsAPerlinMaterial)
+{
+    // The ray hits the sphere at (0, 0, -4), on the noise lattice, where the
+    // turbulence is zero: clouds there have the low color.
+    const SceneDescription description{
+        readSceneText(withCamera("material stone perlin low 0.1 0.2 0.3 high 0.9 0.9 0.9 scale 1\n"
+                                 "sphere 0 0 -5 radius 1 material stone\n"))};
+
+    expectNear(reflectanceAhead(description.scene), Rgb{0.1, 0.2, 0.3} * inv_pi);
+}
+
+TEST(SceneFileTest, readsPerlinVeins)
+{
+    // With veins, x = 0 on the lattice is halfway between the colors.
+    const SceneDescription description{readSceneText(
+        withCamera("material stone perlin low 0.1 0.2 0.3 high 0.9 0.8 0.7 scale 2 veins 4\n"
+                   "sphere 0 0 -5 radius 1 material stone\n"))};
+
+    expectNear(reflectanceAhead(description.scene), Rgb{0.5, 0.5, 0.5} * inv_pi);
+}
+
 TEST(SceneFileTest, readsAConductorMaterial)
 {
     // A smooth conductor mirrors: the sample from straight on comes straight back.
@@ -322,6 +343,11 @@ TEST(SceneFileTest, rejectsMaterialValuesOutOfRange)
          {"material m diffuse color -0.1 0 0",
           "material m checker even 1 1 1 odd 0 0 0 frequency 0",
           "material m checker even 1 1 1 odd 0 0 0 frequency -2",
+          "material m perlin low 0 0 0 high 1 1 1 scale 0",
+          "material m perlin low 0 0 0 high 1 1 1 scale 1 veins -1",
+          "material m perlin low 0 0 0 high 1 1 1 scale 1 veins 101",
+          "material m perlin low -1 0 0 high 1 1 1 scale 1",
+          "material m perlin low 0 0 0 high 1 1 1.5 scale 1",
           "material m conductor eta 0 1 1 k 1 1 1", "material m conductor eta 1 1 1 k -1 1 1",
           "material m conductor eta 1 1 1 k 1 1 1 roughness -0.5", "material m dielectric ior 0",
           "material m dielectric ior 1.5 roughness -1"}) {
@@ -360,6 +386,8 @@ TEST(SceneFileTest, acceptsValuesAtTheEdgesOfTheirRanges)
                                    "material c dielectric ior 100\n"
                                    "material d diffuse color 0 1 1\n"
                                    "material e checker even 1 1 1 odd 0 0 0 frequency 1\n"
+                                   "material f perlin low 0 0 0 high 1 1 1 scale 1 veins 0\n"
+                                   "material g perlin low 0 0 0 high 1 1 1 scale 1 veins 100\n"
                                    "sky 1e6 1e6 1e6\n"
                                    "point_light 0 0 0 intensity 1e6 0 1e6\n")),
               no_error);
@@ -386,7 +414,9 @@ TEST(SceneFileTest, rejectsMaterialsMissingARequiredField)
 {
     for (const std::string_view statement :
          {"material m diffuse", "material m checker even 1 1 1 odd 0 0 0",
-          "material m conductor eta 1 1 1", "material m dielectric roughness 0"}) {
+          "material m conductor eta 1 1 1", "material m dielectric roughness 0",
+          "material m perlin high 1 1 1 scale 1", "material m perlin low 0 0 0 scale 1",
+          "material m perlin low 0 0 0 high 1 1 1"}) {
         EXPECT_EQ(errorLine(withCamera(std::string{statement} + "\n")), 2U)
             << "statement: " << statement;
     }

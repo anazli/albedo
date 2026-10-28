@@ -36,6 +36,8 @@ target_sources(albedo_core
         albedo/scene/scene.cpp
         albedo/scene/scene_file.cpp
         albedo/texture/checker_texture.cpp
+        albedo/texture/perlin_noise.cpp
+        albedo/texture/perlin_texture.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
@@ -103,6 +105,8 @@ target_sources(albedo_core
             albedo/scene/scene_object.hpp
             albedo/texture/checker_texture.hpp
             albedo/texture/constant_texture.hpp
+            albedo/texture/perlin_noise.hpp
+            albedo/texture/perlin_texture.hpp
             albedo/texture/texture.hpp
 )
 target_compile_features(albedo_core PUBLIC cxx_std_20)
