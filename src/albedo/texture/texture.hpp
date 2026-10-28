@@ -4,6 +4,7 @@
 #include "albedo/scene/hit_record.hpp"
 #include "albedo/texture/checker_texture.hpp"
 #include "albedo/texture/constant_texture.hpp"
+#include "albedo/texture/perlin_texture.hpp"
 
 #include <concepts>
 #include <variant>
@@ -22,7 +23,7 @@ using TextureVariant = std::variant<Textures...>;
 
 /// Any texture the renderer supports: a color that varies over a surface. A
 /// closed set, like `Material`. Default-constructs to black.
-using Texture = TextureVariant<ConstantTexture, CheckerTexture>;
+using Texture = TextureVariant<ConstantTexture, CheckerTexture, PerlinTexture>;
 
 /// The color of `texture` where `hit` lies on a surface.
 /// Not `noexcept`: `std::visit` throws `std::bad_variant_access` on a valueless variant.

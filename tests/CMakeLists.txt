@@ -48,6 +48,7 @@ add_executable(albedo_tests
     light/point_light_test.cpp
     light/sky_light_test.cpp
     material/material_test.cpp
+    material/mix_material_test.cpp
     render/render_image_test.cpp
     render/tile_test.cpp
     sampling/pcg32_test.cpp
@@ -65,6 +66,9 @@ add_executable(albedo_tests
     scene/scene_test.cpp
     texture/checker_texture_test.cpp
     texture/constant_texture_test.cpp
+    texture/perlin_noise_test.cpp
+    texture/perlin_pattern_test.cpp
+    texture/perlin_texture_test.cpp
     texture/texture_test.cpp
 )
 target_include_directories(albedo_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -32,7 +32,7 @@ Rgb normalColor(Normal3r normal) noexcept
 Rgb NormalsEstimator::radiance(const Ray& ray, const Scene& scene)
 {
     if (const auto hit{scene.intersect(ray, in_front_of_origin)}) {
-        return normalColor(hit->normal);
+        return normalColor(hit->shading_normal);
     }
     return skyColor(ray.direction);
 }

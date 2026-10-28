@@ -1,15 +1,20 @@
 #include "albedo/estimator/path_estimator.hpp"
 
+#include "albedo/core/transform.hpp"
 #include "albedo/estimator/scatter_only_estimator.hpp"
+#include "albedo/geometry/mesh_geometry.hpp"
+#include "albedo/geometry/mesh_instance.hpp"
 #include "albedo/material/material.hpp"
 #include "albedo/sampling/sample_generator.hpp"
 #include "albedo/scattering/fresnel.hpp"
 #include "support/expect_near.hpp"
+#include "support/tent_mesh.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <functional>
+#include <memory>
 
 namespace albedo {
 namespace {
@@ -77,6 +82,27 @@ TEST(PathEstimatorTest, pointLightOverADiffusePlaneMatchesTheAnalyticRadiance)
     constexpr Real albedo{0.5};
     Scene scene;
     addGround(scene, albedo);
+    scene.addLight(PointLight{.position = {0.0, 2.0, 0.0}, .intensity = intensity});
+    SampleGenerator generator{testGenerator()};
+
+    for (int i{0}; i < 100; ++i) {
+        expectNear(PathEstimator{}.radiance(at_ground, scene, generator),
+                   intensity * (albedo * inv_pi / 4), exact_estimate);
+    }
+}
+
+TEST(PathEstimatorTest, smoothRidgeIsLitLikeFlatGroundFacingTheLight)
+{
+    // As above, but on the ridge of the smooth tent, whose slopes lean 45
+    // degrees: the cosine is taken to the shading normal, +y, so the light falls
+    // on it as on flat ground.
+    constexpr Rgb intensity{8.0, 6.0, 4.0};
+    constexpr Real albedo{0.5};
+    Scene scene;
+    scene.add(MeshInstance{std::make_shared<const MeshGeometry>(test_support::tentMesh(),
+                                                                MeshShading::Smooth),
+                           Transform{}},
+              DiffuseMaterial{.albedo = ConstantTexture{.color = {albedo, albedo, albedo}}});
     scene.addLight(PointLight{.position = {0.0, 2.0, 0.0}, .intensity = intensity});
     SampleGenerator generator{testGenerator()};
 

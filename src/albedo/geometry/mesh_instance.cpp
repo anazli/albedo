@@ -39,10 +39,24 @@ std::optional<ShapeHit> MeshInstance::intersect(const Ray& ray, Interval t_range
     if (!std::isnormal(lengthSquared(normal))) {
         return std::nullopt;
     }
+    const Normal3r world_normal{asNormal(normalized(normal))};
     return ShapeHit{.t = hit->t,
                     .point = placement->to_world.apply(hit->point),
-                    .normal = asNormal(normalized(normal)),
+                    .normal = world_normal,
+                    .shading_normal = worldShadingNormal(*hit, world_normal),
                     .uv = hit->uv};
+}
+
+Normal3r MeshInstance::worldShadingNormal(const ShapeHit& hit, Normal3r world_normal) const noexcept
+{
+    // A flat hit shades with its geometric normal, already transformed.
+    if (hit.shading_normal == hit.normal) {
+        return world_normal;
+    }
+    // The shading normal transforms as the geometric one does; if it alone cannot
+    // be normalized, the geometric normal shades no worse than a miss would.
+    const Vector3r shading{asVector(placement->to_world.apply(hit.shading_normal))};
+    return std::isnormal(lengthSquared(shading)) ? asNormal(normalized(shading)) : world_normal;
 }
 
 } // namespace albedo

@@ -5,6 +5,7 @@
 #include "albedo/geometry/triangle_mesh.hpp"
 #include "support/expect_near.hpp"
 #include "support/require_value.hpp"
+#include "support/tent_mesh.hpp"
 
 #include <gtest/gtest.h>
 
@@ -87,6 +88,17 @@ TEST(MeshInstanceTest, rotatedInstanceTurnsItsNormal)
 
     EXPECT_NEAR(hit.t, 5.0, default_tolerance);
     expectNear(hit.normal, Normal3r{1.0, 0.0, 0.0});
+}
+
+TEST(MeshInstanceTest, flatMeshShadesWithTheTurnedNormal)
+{
+    const MeshInstance instance{square(), Transform::rotation({0.0, 1.0, 0.0}, 90.0)};
+    const Ray towards_minus_x{.origin = {0.0, 0.0, 0.0}, .direction = {-1.0, 0.0, 0.0}};
+
+    const ShapeHit hit{requireValue(instance.intersect(towards_minus_x, positive_t))};
+
+    // Exactly equal: flat hits must keep a single normal.
+    EXPECT_EQ(hit.shading_normal, hit.normal);
 }
 
 TEST(MeshInstanceTest, normalIsUnitAndPerpendicularUnderNonUniformScaling)
@@ -174,6 +186,48 @@ TEST(MeshInstanceTest, rejectsATransformWhoseBoundsOverflow)
         TriangleMesh{{{0.0, 0.0, 0.0}, {1e70, 0.0, 0.0}, {0.0, 1e70, 0.0}}, {{0, 1, 2}}})};
 
     EXPECT_THROW(MeshInstance(large, Transform::scaling({1e300, 1.0, 1.0})), std::invalid_argument);
+}
+
+std::shared_ptr<const MeshGeometry> smoothTent()
+{
+    return std::make_shared<const MeshGeometry>(test_support::tentMesh(), MeshShading::Smooth);
+}
+
+TEST(MeshInstanceTest, rotatedSmoothInstanceTurnsItsShadingNormal)
+{
+    // A quarter turn about +z takes the ridge's +y normal to -x.
+    const MeshInstance instance{smoothTent(), Transform::rotation({0.0, 0.0, 1.0}, 90.0)};
+    const Ray towards_plus_x{.origin = {-5.0, 0.0, 0.0}, .direction = {1.0, 0.0, 0.0}};
+
+    const ShapeHit hit{requireValue(instance.intersect(towards_plus_x, positive_t))};
+
+    expectNear(hit.shading_normal, Normal3r{-1.0, 0.0, 0.0});
+}
+
+TEST(MeshInstanceTest, scaledSmoothInstanceTransformsItsShadingNormalAsANormal)
+{
+    // Stretching x by 2 halves the x component of a normal before normalizing:
+    // halfway down the left slope, the shading normal leans less towards -x.
+    const Transform stretch{Transform::scaling({2.0, 1.0, 1.0})};
+    const MeshInstance instance{smoothTent(), stretch};
+    const Ray onto_the_left_slope{.origin = {-10.0, 5.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+    const Vector3r mesh_shading{Vector3r{0.0, 1.0, 0.0} + normalized(Vector3r{-1.0, 1.0, 0.0})};
+
+    const ShapeHit hit{requireValue(instance.intersect(onto_the_left_slope, positive_t))};
+
+    expectNear(hit.shading_normal,
+               normalized(asNormal(Vector3r{mesh_shading.x / 2, mesh_shading.y, 0.0})));
+}
+
+TEST(MeshInstanceTest, mirroredSmoothInstanceKeepsItsShadingNormalOnTheFrontSide)
+{
+    const MeshInstance instance{smoothTent(), Transform::scaling({1.0, -1.0, 1.0})};
+    const Ray onto_the_left_slope{.origin = {-5.0, -10.0, 0.0}, .direction = {0.0, 1.0, 0.0}};
+
+    const ShapeHit hit{requireValue(instance.intersect(onto_the_left_slope, positive_t))};
+
+    EXPECT_GT(dot(hit.shading_normal, hit.normal), 0.0);
+    EXPECT_LT(hit.shading_normal.y, 0.0);
 }
 
 } // namespace

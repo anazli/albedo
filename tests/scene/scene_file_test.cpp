@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -225,6 +226,101 @@ TEST(SceneFileTest, readsACheckerMaterial)
     expectNear(reflectanceAhead(description.scene), Rgb{0.1, 0.2, 0.3} * inv_pi);
 }
 
+TEST(SceneFileTest, readsAPerlinMaterial)
+{
+    // The ray hits the sphere at (0, 0, -4), on the noise lattice, where the
+    // turbulence is zero: clouds there have the low color.
+    const SceneDescription description{
+        readSceneText(withCamera("material stone perlin low 0.1 0.2 0.3 high 0.9 0.9 0.9 scale 1\n"
+                                 "sphere 0 0 -5 radius 1 material stone\n"))};
+
+    expectNear(reflectanceAhead(description.scene), Rgb{0.1, 0.2, 0.3} * inv_pi);
+}
+
+TEST(SceneFileTest, readsPerlinVeins)
+{
+    // With veins, x = 0 on the lattice is halfway between the colors.
+    const SceneDescription description{readSceneText(
+        withCamera("material stone perlin low 0.1 0.2 0.3 high 0.9 0.8 0.7 scale 2 veins 4\n"
+                   "sphere 0 0 -5 radius 1 material stone\n"))};
+
+    expectNear(reflectanceAhead(description.scene), Rgb{0.5, 0.5, 0.5} * inv_pi);
+}
+
+TEST(SceneFileTest, readsAMixMaterial)
+{
+    // At (0, 0, -4), on the noise lattice, marble with scale 1 weighs 0.5: the
+    // second material at threshold 0.5, the first above it.
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material blue diffuse color 0.1 0.1 0.6\n"};
+    const SceneDescription at_threshold{readSceneText(
+        withCamera(materials + "material m mix first red second blue scale 1 veins 2\n"
+                               "sphere 0 0 -5 radius 1 material m\n"))};
+    const SceneDescription above{readSceneText(withCamera(
+        materials + "material m mix first red second blue scale 1 veins 2 threshold 0.6\n"
+                    "sphere 0 0 -5 radius 1 material m\n"))};
+
+    expectNear(reflectanceAhead(at_threshold.scene), Rgb{0.1, 0.1, 0.6} * inv_pi);
+    expectNear(reflectanceAhead(above.scene), Rgb{0.6, 0.1, 0.1} * inv_pi);
+}
+
+TEST(SceneFileTest, rejectsMixMaterialsThatCannotBeBuilt)
+{
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material blue diffuse color 0.1 0.1 0.6\n"};
+    for (const std::string_view statement :
+         {"material m mix first red second green scale 1",
+          "material m mix first red second red scale 0",
+          "material m mix first red second blue scale 1 veins -1",
+          "material m mix first red second blue scale 1 threshold 1.5",
+          "material m mix first red second blue scale 1 threshold -0.1",
+          "material m mix first red scale 1", "material m mix second blue scale 1",
+          "material m mix first red second blue", "material m mix first 1red second blue scale 1",
+          "material m mix first red second blue scale 1 veins 101",
+          "material m mix first red second blue scale 1 threshold nan",
+          "material m mix first red second blue scale 1 threshold inf",
+          "material m mix first red second blue scale 1 colour 1",
+          "material m mix first m second red scale 1"}) {
+        EXPECT_EQ(errorLine(withCamera(materials + std::string{statement} + "\n")), 4U)
+            << "statement: " << statement;
+    }
+}
+
+TEST(SceneFileTest, rejectsAMixAsEitherMaterialOfAMix)
+{
+    const std::string materials{"material red diffuse color 0.6 0.1 0.1\n"
+                                "material m mix first red second red scale 1\n"};
+
+    EXPECT_EQ(errorLine(withCamera(materials + "material n mix first m second red scale 1\n")), 4U);
+    EXPECT_EQ(errorLine(withCamera(materials + "material n mix first red second m scale 1\n")), 4U);
+}
+
+TEST(SceneFileTest, namesTheMixThatCannotBeMixed)
+{
+    const std::string message{
+        errorMessage(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                "material m mix first red second red scale 1\n"
+                                "material n mix first m second red scale 1\n"))};
+
+    EXPECT_NE(message.find("material 'm' is a mix"), std::string::npos) << message;
+}
+
+TEST(SceneFileTest, mixMayUseOneMaterialTwice)
+{
+    EXPECT_EQ(errorLine(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                   "material m mix first red second red scale 1\n")),
+              no_error);
+}
+
+TEST(SceneFileTest, mixAcceptsThresholdsAtTheEdges)
+{
+    EXPECT_EQ(errorLine(withCamera("material red diffuse color 0.6 0.1 0.1\n"
+                                   "material blue diffuse color 0.1 0.1 0.6\n"
+                                   "material m mix first red second blue scale 1 threshold 0\n"
+                                   "material n mix first red second blue scale 1 threshold 1\n")),
+              no_error);
+}
+
 TEST(SceneFileTest, readsAConductorMaterial)
 {
     // A smooth conductor mirrors: the sample from straight on comes straight back.
@@ -322,6 +418,11 @@ TEST(SceneFileTest, rejectsMaterialValuesOutOfRange)
          {"material m diffuse color -0.1 0 0",
           "material m checker even 1 1 1 odd 0 0 0 frequency 0",
           "material m checker even 1 1 1 odd 0 0 0 frequency -2",
+          "material m perlin low 0 0 0 high 1 1 1 scale 0",
+          "material m perlin low 0 0 0 high 1 1 1 scale 1 veins -1",
+          "material m perlin low 0 0 0 high 1 1 1 scale 1 veins 101",
+          "material m perlin low -1 0 0 high 1 1 1 scale 1",
+          "material m perlin low 0 0 0 high 1 1 1.5 scale 1",
           "material m conductor eta 0 1 1 k 1 1 1", "material m conductor eta 1 1 1 k -1 1 1",
           "material m conductor eta 1 1 1 k 1 1 1 roughness -0.5", "material m dielectric ior 0",
           "material m dielectric ior 1.5 roughness -1"}) {
@@ -360,6 +461,8 @@ TEST(SceneFileTest, acceptsValuesAtTheEdgesOfTheirRanges)
                                    "material c dielectric ior 100\n"
                                    "material d diffuse color 0 1 1\n"
                                    "material e checker even 1 1 1 odd 0 0 0 frequency 1\n"
+                                   "material f perlin low 0 0 0 high 1 1 1 scale 1 veins 0\n"
+                                   "material g perlin low 0 0 0 high 1 1 1 scale 1 veins 100\n"
                                    "sky 1e6 1e6 1e6\n"
                                    "point_light 0 0 0 intensity 1e6 0 1e6\n")),
               no_error);
@@ -386,7 +489,9 @@ TEST(SceneFileTest, rejectsMaterialsMissingARequiredField)
 {
     for (const std::string_view statement :
          {"material m diffuse", "material m checker even 1 1 1 odd 0 0 0",
-          "material m conductor eta 1 1 1", "material m dielectric roughness 0"}) {
+          "material m conductor eta 1 1 1", "material m dielectric roughness 0",
+          "material m perlin high 1 1 1 scale 1", "material m perlin low 0 0 0 scale 1",
+          "material m perlin low 0 0 0 high 1 1 1"}) {
         EXPECT_EQ(errorLine(withCamera(std::string{statement} + "\n")), 2U)
             << "statement: " << statement;
     }
@@ -784,6 +889,48 @@ TEST(SceneFileTest, groundStandsTheInstanceOnTheFloor)
     const Ray down{.origin = {0.5, 5.0, 0.5}, .direction = {0.0, -1.0, 0.0}};
 
     EXPECT_NEAR(requireValue(hitDistance(description.scene, down)), 5.0, default_tolerance);
+}
+
+// The tent of `test_support::tentMesh` as an OBJ file: its ridge shades with +y
+// when smooth, and its slopes lean 45 degrees either way.
+constexpr std::string_view tent_obj{"v 0 0 -10\nv 0 0 10\nv -10 -10 -10\nv -10 -10 10\n"
+                                    "v 10 -10 -10\nv 10 -10 10\n"
+                                    "f 3 4 2\nf 3 2 1\nf 1 2 5\nf 2 6 5\n"};
+constexpr Ray onto_the_ridge{.origin = {0.0, 5.0, 0.0}, .direction = {0.0, -1.0, 0.0}};
+
+// The shading normal where `onto_the_ridge` hits a tent read with `mesh_line`
+// from a directory holding the tent and the square.
+Normal3r ridgeShadingNormal(const SquareDirectory& directory, std::string_view mesh_line)
+{
+    static_cast<void>(directory.get().write("tent.obj", tent_obj));
+    const SceneDescription description{
+        directory.read(withSquare(std::string{mesh_line} + "instance tent material red\n"))};
+    return requireValue(description.scene.intersect(onto_the_ridge, positive_t)).shading_normal;
+}
+
+TEST(SceneFileTest, meshesAreFlatByDefault)
+{
+    const SquareDirectory directory{"flat_mesh"};
+
+    const Normal3r normal{ridgeShadingNormal(directory, "mesh tent tent.obj\n")};
+
+    EXPECT_NEAR(std::abs(normal.x), std::sqrt(0.5), default_tolerance);
+}
+
+TEST(SceneFileTest, smoothMeshesShadeWithAveragedNormals)
+{
+    const SquareDirectory directory{"smooth_mesh"};
+
+    expectNear(ridgeShadingNormal(directory, "mesh tent tent.obj smooth\n"),
+               Normal3r{0.0, 1.0, 0.0});
+}
+
+TEST(SceneFileTest, rejectsUnknownWordsAfterAMeshPath)
+{
+    const SquareDirectory directory{"mesh_extra"};
+
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq square.obj smoothly\n")), 2U);
+    EXPECT_EQ(directory.errorLine(withCamera("mesh sq square.obj smooth smooth\n")), 2U);
 }
 
 TEST(SceneFileTest, instancesOfOneMeshShareItsGeometry)

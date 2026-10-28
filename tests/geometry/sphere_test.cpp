@@ -81,6 +81,16 @@ TEST(SphereTest, normalPointsOutwardWithUnitLength)
     expectNear(hit.normal, Normal3r{0.0, 0.0, 1.0});
 }
 
+TEST(SphereTest, shadingNormalIsTheNormal)
+{
+    const Sphere sphere{Point3r{0.0, 0.0, -5.0}, 1.0};
+    const Ray ray{.origin = {0.0, 0.3, 0.0}, .direction = {0.1, 0.0, -1.0}};
+
+    const ShapeHit hit{requireValue(sphere.intersect(ray, positive_t))};
+
+    EXPECT_EQ(hit.shading_normal, hit.normal);
+}
+
 TEST(SphereTest, rayThatPassesBesideMisses)
 {
     const Ray ray{.origin = {0.0, 1.5, 0.0}, .direction = {0.0, 0.0, -1.0}};

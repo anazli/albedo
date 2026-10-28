@@ -130,7 +130,8 @@ std::optional<ShapeHit> Sphere::intersect(const Ray& ray, Interval t_range) cons
     }
     // Normalized rather than divided by the radius: for a small, distant sphere the
     // hit point's rounding error is large relative to the radius.
-    return ShapeHit{.t = t, .point = point, .normal = asNormal(normalized(outward))};
+    const Normal3r normal{asNormal(normalized(outward))};
+    return ShapeHit{.t = t, .point = point, .normal = normal, .shading_normal = normal};
 }
 
 Point2r Sphere::textureCoordinatesAt(const ShapeHit& hit) noexcept

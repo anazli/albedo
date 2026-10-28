@@ -16,12 +16,17 @@
 #include "albedo/io/tokens.hpp"
 #include "albedo/light/point_light.hpp"
 #include "albedo/light/sky_light.hpp"
+#include "albedo/material/basic_material.hpp"
 #include "albedo/material/material.hpp"
+#include "albedo/material/mix_material.hpp"
 #include "albedo/texture/checker_texture.hpp"
 #include "albedo/texture/constant_texture.hpp"
+#include "albedo/texture/perlin_pattern.hpp"
+#include "albedo/texture/perlin_texture.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -38,6 +43,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -70,6 +76,8 @@ constexpr Real max_ior{1e2};
 constexpr Real min_conductor_eta{1e-3};
 constexpr Real max_conductor_eta{1e3};
 constexpr Real max_conductor_k{1e3};
+// Beyond this the marble bands warp into noise finer than any pixel.
+constexpr Real max_perlin_veins{1e2};
 
 // Longest piece of input an error message repeats.
 constexpr std::size_t max_quoted_length{32};
@@ -564,7 +572,8 @@ private:
             statement.fail(std::format("material {} is already defined", quoted(name)));
         }
         const std::string_view type{statement.word("a material type")};
-        materials.emplace(std::string{name}, materialOfType(statement, type));
+        materials.emplace(std::string{name},
+                          type == "mix" ? readMix(statement) : materialOfType(statement, type));
     }
 
     static Material materialOfType(Statement& statement, std::string_view type)
@@ -574,6 +583,9 @@ private:
         }
         if (type == "checker") {
             return readChecker(statement);
+        }
+        if (type == "perlin") {
+            return readPerlin(statement);
         }
         if (type == "conductor") {
             return readConductor(statement);
@@ -619,6 +631,32 @@ private:
             .albedo = CheckerTexture{.even = statement.required(even, "even"),
                                      .odd = statement.required(odd, "odd"),
                                      .frequency = statement.required(frequency, "frequency")}};
+    }
+
+    static Material readPerlin(Statement& statement)
+    {
+        std::optional<Rgb> low;
+        std::optional<Rgb> high;
+        std::optional<Real> scale;
+        Real veins{0};
+        statement.readFields([&](std::string_view field) {
+            if (field == "low") {
+                low = statement.reflectance("the low color");
+            } else if (field == "high") {
+                high = statement.reflectance("the high color");
+            } else if (field == "scale") {
+                scale = statement.positive("the noise scale");
+            } else if (field == "veins") {
+                veins = statement.inRange("the veins", 0, max_perlin_veins);
+            } else {
+                return false;
+            }
+            return true;
+        });
+        return DiffuseMaterial{.albedo = PerlinTexture{.low = statement.required(low, "low"),
+                                                       .high = statement.required(high, "high"),
+                                                       .scale = statement.required(scale, "scale"),
+                                                       .veins = veins}};
     }
 
     static Material readConductor(Statement& statement)
@@ -675,6 +713,59 @@ private:
             return true;
         });
         return DielectricMaterial{.ior = statement.required(ior, "ior"), .roughness = roughness};
+    }
+
+    // Mixes two materials defined earlier, neither of them a mix itself.
+    [[nodiscard]] Material readMix(Statement& statement) const
+    {
+        std::optional<BasicMaterial> first;
+        std::optional<BasicMaterial> second;
+        std::optional<Real> scale;
+        Real veins{0};
+        Real threshold{0.5};
+        statement.readFields([&](std::string_view field) {
+            if (field == "first") {
+                first = basicMaterialNamed(statement);
+            } else if (field == "second") {
+                second = basicMaterialNamed(statement);
+            } else if (field == "scale") {
+                scale = statement.positive("the noise scale");
+            } else if (field == "veins") {
+                veins = statement.inRange("the veins", 0, max_perlin_veins);
+            } else if (field == "threshold") {
+                threshold = statement.inRange("the threshold", 0, 1);
+            } else {
+                return false;
+            }
+            return true;
+        });
+        return MixMaterial{.first = statement.required(first, "first"),
+                           .second = statement.required(second, "second"),
+                           .pattern = {.scale = statement.required(scale, "scale"), .veins = veins},
+                           .threshold = threshold};
+    }
+
+    // The material named by the next word, which must not be a mix: mixes hold
+    // only basic materials.
+    [[nodiscard]] BasicMaterial basicMaterialNamed(Statement& statement) const
+    {
+        const std::string_view name{statement.peek().value_or("")};
+        const Material& material{materialNamed(statement)};
+        if (std::holds_alternative<MixMaterial>(material)) {
+            statement.fail(std::format("material {} is a mix, and a mix cannot hold another mix",
+                                       quoted(name)));
+        }
+        return std::visit(
+            [](const auto& alternative) -> BasicMaterial {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(alternative)>,
+                                             MixMaterial>) {
+                    assert(false && "mixes are rejected before the visit");
+                    return {};
+                } else {
+                    return alternative;
+                }
+            },
+            material);
     }
 
     // The material named by the next word.
@@ -782,6 +873,10 @@ private:
             statement.fail(std::format("mesh {} is already defined", quoted(name)));
         }
         const std::string_view path{statement.word("a mesh file")};
+        const bool smooth{statement.peek() == "smooth"};
+        if (smooth) {
+            static_cast<void>(statement.next());
+        }
         statement.expectEnd();
         const TriangleMesh mesh{
             loadObj(statement, meshFile(statement, *base_directory, path), path)};
@@ -791,7 +886,8 @@ private:
         }
         std::shared_ptr<const MeshGeometry> geometry;
         try {
-            geometry = std::make_shared<const MeshGeometry>(mesh);
+            geometry = std::make_shared<const MeshGeometry>(mesh, smooth ? MeshShading::Smooth
+                                                                         : MeshShading::Flat);
         } catch (const std::invalid_argument& error) {
             statement.fail(std::format("mesh {}: {}", quoted(path), error.what()));
         }

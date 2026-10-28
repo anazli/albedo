@@ -69,26 +69,31 @@ struct SceneDescription {
 ///     sky nadir R G B  zenith R G B
 ///     material NAME diffuse color R G B
 ///     material NAME checker even R G B  odd R G B  frequency F
+///     material NAME perlin low R G B  high R G B  scale S  [veins V]
+///     material NAME mix first NAME  second NAME  scale S  [veins V]  [threshold T]
 ///     material NAME conductor eta R G B  k R G B  [roughness X]
 ///     material NAME dielectric ior X  [roughness X]
 ///     sphere X Y Z  radius R  material NAME
 ///     point_light X Y Z  intensity R G B
 ///     area_light X Y Z  radius R  radiance R G B  [material NAME]
-///     mesh NAME PATH
+///     mesh NAME PATH  [smooth]
 ///     instance MESH material NAME  [OPERATION...]
 ///
-/// `up` defaults to +y and `fov` to 60 degrees; roughness defaults to 0; an area
-/// light without a material is black. Exactly one camera is required, and at
-/// most one sky is allowed (black if absent). A material must be defined before
-/// it is used. Numbers are as `parseReal` reads them, and must lie in ranges
-/// that keep rendering well defined: reflectances (`color`, `even`, `odd`) in
-/// [0, 1] per channel; emitted light (`sky`, `intensity`, `radiance`) in
-/// [0, 1e6]; `roughness` in [0, 1]; `ior` in [0.01, 100]; conductor `eta` in
-/// [0.001, 1000] and `k` in [0, 1000], with no channel having both eta 1 and k
-/// 0; `frequency` positive. Comments run from `#` to the end of a line; blank
-/// lines are ignored. Objects and lights are added to the scene in file order.
-/// Error messages quote at most 32 bytes of the input, with bytes outside
-/// printable ASCII escaped.
+/// `up` defaults to +y and `fov` to 60 degrees; roughness defaults to 0; an
+/// area light without a material is black; `veins` defaults to 0 (see
+/// `PerlinPattern`); `threshold` defaults to 0.5 (see `MixMaterial`), and a
+/// mix's materials must be defined and not mixes. Exactly one camera is
+/// required, and at most one sky is allowed (black if absent). A material must
+/// be defined before it is used. Numbers are as `parseReal` reads them, and
+/// must lie in ranges that keep rendering well defined: reflectances (`color`,
+/// `even`, `odd`, `low`, `high`) in [0, 1] per channel; emitted light (`sky`,
+/// `intensity`, `radiance`) in [0, 1e6]; `roughness` in [0, 1]; `ior` in
+/// [0.01, 100]; conductor `eta` in [0.001, 1000] and `k` in [0, 1000], with no
+/// channel having both eta 1 and k 0; `frequency` and `scale` positive; `veins`
+/// in [0, 100]; `threshold` in [0, 1]. Comments run from `#` to the end of a line;
+/// blank lines are ignored. Objects and lights are added to the scene in file
+/// order. Error messages quote at most 32 bytes of the input, with bytes
+/// outside printable ASCII escaped.
 ///
 /// `mesh` reads the Wavefront OBJ file at PATH (see `readObj`), resolved against
 /// `base_directory`; an empty `base_directory` means the current directory, and
@@ -98,7 +103,9 @@ struct SceneDescription {
 /// regular file still inside `base_directory` once symbolic links are resolved.
 /// So a scene can only read meshes kept beside it, though the check cannot stop
 /// the directory being changed between the check and the opening of the file.
-/// A mesh needs at least one triangle with area. `instance` places a mesh, which any
+/// A mesh needs at least one triangle with area; `smooth` shades it with
+/// normals averaged at its vertices (see `TriangleMesh::smoothNormals`) rather
+/// than with each triangle's own. `instance` places a mesh, which any
 /// number of instances share, with a material and up to
 /// `limits.max_instance_operations` operations applied in the order written:
 ///

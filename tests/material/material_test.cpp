@@ -27,6 +27,7 @@ concept CanFormMaterialVariant = requires { typename MaterialVariant<Materials..
 TEST(MaterialTest, typeWithoutScatteringIsNotAMaterial)
 {
     static_assert(MaterialLike<DiffuseMaterial>);
+    static_assert(MaterialLike<MixMaterial>);
     static_assert(!MaterialLike<MaterialWithoutScattering>);
 }
 
@@ -38,8 +39,11 @@ TEST(MaterialTest, materialVariantRejectsNonMaterialAlternatives)
 
 constexpr Rgb albedo{0.7, 0.2, 0.4};
 const Material material{DiffuseMaterial{.albedo = ConstantTexture{.color = albedo}}};
-const HitRecord hit{
-    .t = 1.0, .point = {0.0, 0.0, 0.0}, .normal = {1.0, 0.0, 0.0}, .front_face = true};
+const HitRecord hit{.t = 1.0,
+                    .point = {0.0, 0.0, 0.0},
+                    .normal = {1.0, 0.0, 0.0},
+                    .shading_normal = {1.0, 0.0, 0.0},
+                    .front_face = true};
 const Vector3r wo{normalized(Vector3r{1.0, 0.2, 0.0})};
 
 TEST(MaterialTest, diffuseMaterialReflectsItsAlbedo)
@@ -47,6 +51,44 @@ TEST(MaterialTest, diffuseMaterialReflectsItsAlbedo)
     const Scattering scattering{scatteringAt(material, hit)};
 
     expectNear(scattering.evaluate(wo, normalized(Vector3r{1.0, -0.5, 0.3})), albedo * inv_pi);
+}
+
+TEST(MaterialTest, materialsScatterAroundTheShadingNormal)
+{
+    HitRecord smooth_hit{hit};
+    smooth_hit.shading_normal = normalized(Normal3r{1.0, 0.5, 0.0});
+    const Vector3r wi{normalized(Vector3r{1.0, 0.1, 0.4})};
+
+    EXPECT_NEAR(scatteringAt(material, smooth_hit).pdf(wo, wi),
+                dot(smooth_hit.shading_normal, wi) * inv_pi, default_tolerance);
+}
+
+TEST(MaterialTest, conductorAndDielectricScatterAroundTheShadingNormal)
+{
+    HitRecord smooth_hit{hit};
+    smooth_hit.shading_normal = normalized(Normal3r{1.0, 0.5, 0.0});
+    const SurfaceNormals normals{.shading = smooth_hit.shading_normal, .geometric = hit.normal};
+    const Vector3r wi{normalized(Vector3r{1.0, 0.1, 0.4})};
+    const ConductorMaterial metal{.eta = {0.2, 0.4, 1.4}, .k = {3.6, 2.5, 1.9}, .roughness = 0.5};
+    const DielectricMaterial glass{.ior = 1.5, .roughness = 0.5};
+
+    EXPECT_NEAR(metal.scatteringAt(smooth_hit).pdf(wo, wi),
+                Scattering(ConductorLobe{.eta = metal.eta, .k = metal.k, .alpha = 0.25}, normals)
+                    .pdf(wo, wi),
+                default_tolerance);
+    EXPECT_NEAR(glass.scatteringAt(smooth_hit).pdf(wo, wi),
+                Scattering(DielectricLobe{.eta = 1.5, .alpha = 0.25}, normals).pdf(wo, wi),
+                default_tolerance);
+}
+
+TEST(MaterialTest, materialsScatterNothingThroughTheActualSurface)
+{
+    // In front of the shading frame, but behind the geometric surface.
+    HitRecord smooth_hit{hit};
+    smooth_hit.shading_normal = normalized(Normal3r{1.0, 2.0, 0.0});
+    const Vector3r wi{normalized(Vector3r{-0.2, 1.0, 0.0})};
+
+    EXPECT_TRUE(isBlack(scatteringAt(material, smooth_hit).evaluate(wo, wi)));
 }
 
 TEST(MaterialTest, diffuseMaterialTakesItsAlbedoFromTheTextureAtTheHit)

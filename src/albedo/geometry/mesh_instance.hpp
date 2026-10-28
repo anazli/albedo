@@ -2,6 +2,7 @@
 
 #include "albedo/core/bounds3.hpp"
 #include "albedo/core/interval.hpp"
+#include "albedo/core/normal3.hpp"
 #include "albedo/core/point2.hpp"
 #include "albedo/core/ray.hpp"
 #include "albedo/core/transform.hpp"
@@ -32,9 +33,11 @@ public:
     /// into the mesh's space without normalizing its direction, so `t` and the
     /// range mean the same in both spaces. The hit's point and normal are in world
     /// space; the normal is unit length and lies on the side of the surface it did
-    /// in the mesh, even under a mirroring transform. Texture coordinates are the
-    /// mesh's. A normal too short or too long to normalize counts as a miss.
-    /// Throws only what `MeshGeometry::intersect` throws.
+    /// in the mesh, even under a mirroring transform, and so does the shading
+    /// normal (the geometric one where it alone cannot be normalized). Texture
+    /// coordinates are the mesh's. A geometric normal too short or too long to
+    /// normalize counts as a miss. Throws only what `MeshGeometry::intersect`
+    /// throws.
     [[nodiscard]] std::optional<ShapeHit> intersect(const Ray& ray, Interval t_range) const;
 
     /// Texture coordinates of `hit`, which `intersect` took from the mesh.
@@ -47,6 +50,10 @@ public:
     [[nodiscard]] Bounds3r bounds() const noexcept { return placement->world_bounds; }
 
 private:
+    // The shading normal of `hit`, a hit in the mesh's space, in world space.
+    [[nodiscard]] Normal3r worldShadingNormal(const ShapeHit& hit,
+                                              Normal3r world_normal) const noexcept;
+
     struct Placement {
         std::shared_ptr<const MeshGeometry> mesh;
         Transform to_world;

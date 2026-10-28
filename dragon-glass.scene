@@ -1,0 +1,25 @@
+# A smooth glass dragon facing off with a gold one on a checkered floor at nightfall.
+
+camera from 1.4 1.15 7.2  at 0.2 1.45 0  up 0 1 0  fov 36
+sky nadir 0.005 0.004 0.01  zenith 0.12 0.16 0.32
+
+material gold conductor eta 0.156 0.424 1.383  k 3.602 2.472 1.915  roughness 0.15
+material glass dielectric ior 1.5
+material floor_mat checker even 0.8 0.8 0.8  odd 0.02 0.02 0.02  frequency 1
+
+mesh dragon xyzrgb_dragon.obj smooth
+mesh floor  dragon_floor.obj
+
+instance floor  material floor_mat
+instance dragon material glass    fit 5.2  rotate 0 1 0 -35  ground
+instance dragon material gold     fit 4.8  rotate 0 1 0 -55  ground  translate -3.3 0 -4.4
+
+area_light 2.55 1.5 2.3    radius 0.11  radiance 3.2 0.9 0.16
+area_light 2.33 1.67 1.68   radius 0.04  radiance 3 0.8 0.12
+area_light 2.54 1.83 1.82   radius 0.035 radiance 3 0.8 0.12
+area_light 2.31 1.96 1.88   radius 0.03  radiance 3 0.8 0.12
+area_light 2.74 1.69 2.02   radius 0.025 radiance 3 0.8 0.12
+
+area_light -7 9 16    radius 4    radiance 8 5.5 3
+area_light 3 25 -14   radius 5    radiance 3 4.5 8
+area_light 28 6 -6    radius 4    radiance 1 1.5 2.5

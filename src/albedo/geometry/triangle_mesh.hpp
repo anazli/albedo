@@ -1,5 +1,6 @@
 #pragma once
 
+#include "albedo/core/normal3.hpp"
 #include "albedo/core/point2.hpp"
 #include "albedo/core/point3.hpp"
 #include "albedo/geometry/triangle.hpp"
@@ -59,6 +60,18 @@ public:
     /// or `default_triangle_texture_coordinates` when the mesh has none. Throws
     /// `std::bad_alloc` if memory runs out.
     [[nodiscard]] std::vector<Triangle> triangles() const;
+
+    /// Normals for each corner of each triangle `triangles()` gives, in the same
+    /// order, that make the mesh shade as a smooth surface: each position's normal
+    /// is the average of the normals of the triangles using it, weighted by their
+    /// areas, so neighbouring triangles agree along shared edges. A corner whose
+    /// average cannot be normalized (its triangles' normals cancel out, or their sum
+    /// overflows) takes its own triangle's normal. Normals follow the winding, so
+    /// a mesh whose faces are not wound consistently shades wrongly, mostly black,
+    /// where windings meet. Meant for meshes approximating curved surfaces: hard
+    /// edges, such as a cube's, are rounded off too, and shade darker near them.
+    /// Throws `std::bad_alloc` if memory runs out.
+    [[nodiscard]] std::vector<std::array<Normal3r, 3>> smoothNormals() const;
 
 private:
     // The texture coordinates of face `face`'s corners. Precondition: `face` is

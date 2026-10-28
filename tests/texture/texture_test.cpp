@@ -25,6 +25,7 @@ TEST(TextureTest, typeWithoutEvaluateIsNotATexture)
 {
     static_assert(TextureLike<ConstantTexture>);
     static_assert(TextureLike<CheckerTexture>);
+    static_assert(TextureLike<PerlinTexture>);
     static_assert(!TextureLike<TextureWithoutEvaluate>);
     static_assert(!TextureLike<TextureEvaluatingToNumber>);
 }
